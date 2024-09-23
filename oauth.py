@@ -34,7 +34,7 @@ def validate_init_data(init_data: str, bot_token: str) -> tuple[dict, bool]:
     data_check_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
         
     # Step 5 & 6: Compare the calculated hash with the provided hash
-    return {parsed_data, hmac.compare_digest(data_check_hash, hash_value)}
+    return (parsed_data, hmac.compare_digest(data_check_hash, hash_value))
 
 @oauth_blueprint.route("/oauth/validate", methods=['POST', 'OPTIONS'])
 @cross_origin(origins="*", allow_headers=["Content-Type", "Authorization"])
@@ -60,7 +60,7 @@ def validate_telegram_init_data():
     try:
         logger.info(f"Validating init data: {init_data}")
         parsed_data, is_valid = validate_init_data(init_data, bot_token)
-        logger.info(f"Init data validation result: {is_valid}")
+        logger.info(f"Init data validation result: {is_valid}, Parsed data: {parsed_data}")
         return jsonify({"valid": is_valid, "community": {"name": "Lisbon Surfing"}, "user": {"name": "Roman"}})
     except Exception as e:
         logger.error(f"Error validating init data: {str(e)}", exc_info=True)
