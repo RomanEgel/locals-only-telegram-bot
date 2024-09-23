@@ -1,14 +1,16 @@
 import functions_framework
 from flask import Flask, request
 import logging
-from oauth import oauth_blueprint
+from api import api_blueprint
+from bot import bot_blueprint
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.register_blueprint(oauth_blueprint)
+app.register_blueprint(api_blueprint)
+app.register_blueprint(bot_blueprint)
 
 @functions_framework.http
 def main(request):
