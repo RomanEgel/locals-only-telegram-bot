@@ -60,7 +60,7 @@ def validate_telegram_init_data():
     try:
         logger.info(f"Validating init data: {init_data}")
         parsed_data, is_valid = validate_init_data(init_data, bot_token)
-        logger.info(f"Init data validation result: {is_valid}, Parsed data: {parsed_data}")
+        logger.info(f"Init data validation result: {is_valid}, parsed data: {parsed_data}")
         return jsonify({"valid": is_valid, "community": {"name": "Lisbon Surfing"}, "user": {"name": "Roman"}})
     except Exception as e:
         logger.error(f"Error validating init data: {str(e)}", exc_info=True)
