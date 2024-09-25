@@ -7,6 +7,7 @@ from urllib.parse import parse_qsl
 import logging
 from functools import wraps
 from config import service_manager  # Import the ServiceManager from config
+import json
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -72,6 +73,17 @@ def token_required(f):
 
             request.parsed_data = parsed_data  # Store parsed data in request context
             request.community = community  # Store community in request context
+            # Extract user information from parsed_data
+            user_info_str = parsed_data.get('user', '{}')
+            try:
+                user_info = json.loads(user_info_str)
+                request.user_info = user_info  # Store user info in request context
+            except json.JSONDecodeError:
+                logger.error(f"Error decoding user info: {user_info_str}")
+                return jsonify({"error": "Invalid user information"}), 400
+
+            # Extract language code, defaulting to 'en' if not present
+            request.language_code = user_info.get('language_code', 'en')
             return f(*args, **kwargs)
         except Exception as e:
             logger.error(f"Error validating init data: {str(e)}", exc_info=True)
@@ -91,11 +103,12 @@ def validate_telegram_init_data():
         return jsonify({"message": "Preflight request successful"}), 200
 
     community = request.community
+    user_info = request.user_info
 
     return jsonify({
         "valid": True,
-        "community": {"name": community['name']},
-        "user": {"name": "Roman"}  # Hardcoded user name
+        "community": {"id": community['chatId'], "name": community['name'], "language": community['language']},
+        "user": {"first_name": user_info['first_name'], "last_name": user_info['last_name'], "username": user_info['username']}
     })
 
 @api_blueprint.route("/api/items", methods=['GET'])

@@ -3,6 +3,7 @@ from pymongo import MongoClient, ReturnDocument
 import os
 from bson import ObjectId
 from datetime import datetime
+import json
 
 class BaseEntity:
     def __init__(self, db, collection_name):
@@ -77,8 +78,8 @@ class LocalsItem(BaseEntity):
     def get_structure(cls):
         structure = super().get_structure()
         structure.update({
-            "price": (float, lambda: 0.0, True, "The price of the item. Extract a numeric value.", "Examples: 10.99, 500, 1500.50"),
-            "currency": (str, lambda: "USD", True, "The currency code for the price. Use standard 3-letter currency codes.", "Examples: USD, EUR, GBP, RUB"),
+            "price": (float, lambda: None, True, "The price of the item. Extract a numeric value. If it's mentioned as free, use 0.", "Examples: 10.99, 500, 1500.50"),
+            "currency": (str, lambda: None, True, "The currency code for the price. Use standard 3-letter currency codes.", "Examples: USD, EUR, GBP, RUB"),
             "title": (str, lambda: "Untitled", True, "A short, descriptive title for the item.", "Examples: 'Vintage Guitar', 'iPhone 12 Pro', 'Handmade Pottery Set'"),
             "category": (str, lambda: "Uncategorized", True, "The category the item belongs to. Use general terms.", "Examples: 'Electronics', 'Furniture', 'Clothing', 'Books'"),
             "description": (str, lambda: "No description provided", True, "A detailed description of the item, including condition, features, etc.", "Example: 'Lightly used iPhone 12 Pro, 256GB, Pacific Blue. Comes with original box and accessories. Minor scratches on the back.'")
@@ -97,8 +98,8 @@ class LocalsService(BaseEntity):
     def get_structure(cls):
         structure = super().get_structure()
         structure.update({
-            "price": (float, lambda: 0.0, True, "The price of the service. Extract a numeric value. Use per hour rate if applicable.", "Examples: 25.50, 100, 75.99"),
-            "currency": (str, lambda: "USD", True, "The currency code for the price. Use standard 3-letter currency codes.", "Examples: USD, EUR, GBP, RUB"),
+            "price": (float, lambda: None, True, "The price of the service. Extract a numeric value. Use per hour rate if applicable. If it's mentioned as free, use 0.", "Examples: 25.50, 100, 75.99"),
+            "currency": (str, lambda: None, True, "The currency code for the price. Use standard 3-letter currency codes.", "Examples: USD, EUR, GBP, RUB"),
             "title": (str, lambda: "Untitled", True, "A short, descriptive title for the service.", "Examples: 'Professional Photography', 'House Cleaning', 'Math Tutoring'"),
             "category": (str, lambda: "Uncategorized", True, "The category the service belongs to. Use general terms.", "Examples: 'Home Services', 'Education', 'Professional Services', 'Health & Wellness'"),
             "description": (str, lambda: "No description provided", True, "A detailed description of the service, including what's offered, experience level, etc.", "Example: 'Experienced math tutor offering one-on-one lessons for high school and college students. Specializing in calculus and algebra. Flexible scheduling available.'")
@@ -173,8 +174,8 @@ class ServiceManager:
     def search_items(self, communityId):
         return self.item.search(communityId)
 
-    def create_service(self, id, title, price, image, author, username, publishedAt, category, description, communityId, messageId):
-        return self.service.create(id, title, image, author, username, publishedAt, category, description, communityId, messageId, price=price)
+    def create_service(self, id, title, price, currency, image, author, username, publishedAt, category, description, communityId, messageId):
+        return self.service.create(id, title, image, author, username, publishedAt, category, description, communityId, messageId, price=price, currency=currency)
 
     def search_services(self, communityId):
         return self.service.search(communityId)
