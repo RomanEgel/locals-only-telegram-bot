@@ -111,6 +111,20 @@ def validate_telegram_init_data():
         "user": {"first_name": user_info['first_name'], "last_name": user_info['last_name'], "username": user_info['username']}
     })
 
+@api_blueprint.route("/api/theming", methods=['POST', 'OPTIONS'])
+@cross_origin(origins="*", allow_headers=["Content-Type", "Authorization"])
+@token_required
+def handle_theming():
+    """
+    Handle theming parameters received from Telegram mini app.
+    """
+    if request.method == 'OPTIONS':
+        # Preflight request. Reply successfully:
+        return jsonify({"message": "Preflight request successful"}), 200
+
+    logger.info(f"Received theme parameters: {request.json}")
+    return jsonify({"message": "Theme parameters received successfully"}), 200
+
 @api_blueprint.route("/api/items", methods=['GET'])
 @cross_origin(origins="*", allow_headers=["Content-Type", "Authorization"])
 @token_required
