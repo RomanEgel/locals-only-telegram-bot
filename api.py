@@ -112,8 +112,7 @@ def validate_telegram_init_data():
     })
 
 @api_blueprint.route("/api/theming", methods=['POST', 'OPTIONS'])
-@cross_origin(origins="*", allow_headers=["Content-Type", "Authorization"])
-@token_required
+@cross_origin(origins="*", allow_headers=["Content-Type"])
 def handle_theming():
     """
     Handle theming parameters received from Telegram mini app.
