@@ -91,17 +91,20 @@ def token_required(f):
 
     return decorated_function
 
-@api_blueprint.route("/api/init", methods=['POST', 'OPTIONS'])  # Updated route
-@cross_origin(origins="*", allow_headers=["Content-Type", "Authorization"])
+def handle_options_request(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method == 'OPTIONS':
+            return jsonify({"message": "Preflight request successful"}), 200
+        return f(*args, **kwargs)
+    return decorated_function
+
+@api_blueprint.route("/api/init", methods=['POST', 'OPTIONS'])
 @token_required
 def validate_telegram_init_data():
     """
     Validate the InitData received from Telegram mini app.
     """
-    if request.method == 'OPTIONS':
-        # Preflight request. Reply successfully:
-        return jsonify({"message": "Preflight request successful"}), 200
-
     community = request.community
     user_info = request.user_info
 
@@ -112,20 +115,14 @@ def validate_telegram_init_data():
     })
 
 @api_blueprint.route("/api/theming", methods=['POST', 'OPTIONS'])
-@cross_origin(origins="*", allow_headers=["Content-Type"])
 def handle_theming():
     """
     Handle theming parameters received from Telegram mini app.
     """
-    if request.method == 'OPTIONS':
-        # Preflight request. Reply successfully:
-        return jsonify({"message": "Preflight request successful"}), 200
-
     logger.info(f"Received theme parameters: {request.json}")
     return jsonify({"message": "Theme parameters received successfully"}), 200
 
-@api_blueprint.route("/api/items", methods=['GET'])
-@cross_origin(origins="*", allow_headers=["Content-Type", "Authorization"])
+@api_blueprint.route("/api/items", methods=['GET', 'OPTIONS'])
 @token_required
 def search_items():
     """
@@ -140,8 +137,7 @@ def search_items():
         logger.error(f"Error searching items: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@api_blueprint.route("/api/services", methods=['GET'])
-@cross_origin(origins="*", allow_headers=["Content-Type", "Authorization"])
+@api_blueprint.route("/api/services", methods=['GET', 'OPTIONS'])
 @token_required
 def search_services():
     """
@@ -156,8 +152,7 @@ def search_services():
         logger.error(f"Error searching services: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@api_blueprint.route("/api/events", methods=['GET'])
-@cross_origin(origins="*", allow_headers=["Content-Type", "Authorization"])
+@api_blueprint.route("/api/events", methods=['GET', 'OPTIONS'])
 @token_required
 def search_events():
     """
@@ -172,8 +167,7 @@ def search_events():
         logger.error(f"Error searching events: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@api_blueprint.route("/api/news", methods=['GET'])
-@cross_origin(origins="*", allow_headers=["Content-Type", "Authorization"])
+@api_blueprint.route("/api/news", methods=['GET', 'OPTIONS'])
 @token_required
 def search_news():
     """
@@ -186,4 +180,80 @@ def search_news():
         return jsonify({"news": news})
     except Exception as e:
         logger.error(f"Error searching news: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@api_blueprint.route("/api/items/<item_id>", methods=['DELETE', 'OPTIONS'])
+@token_required
+def delete_item(item_id):
+    """
+    Delete an item by its ID.
+    """
+    chat_id = request.community['chatId']
+    user_info = request.user_info
+
+    try:
+        success = service_manager.delete_item(item_id, chat_id, user_info['username'])
+        if success:
+            return jsonify({"message": "Item deleted successfully"}), 200
+        else:
+            return jsonify({"error": "Item not found or you don't have permission to delete it"}), 404
+    except Exception as e:
+        logger.error(f"Error deleting item: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@api_blueprint.route("/api/services/<service_id>", methods=['DELETE', 'OPTIONS'])
+@token_required
+def delete_service(service_id):
+    """
+    Delete a service by its ID.
+    """
+    chat_id = request.community['chatId']
+    user_info = request.user_info
+
+    try:
+        success = service_manager.delete_service(service_id, chat_id, user_info['username'])
+        if success:
+            return jsonify({"message": "Service deleted successfully"}), 200
+        else:
+            return jsonify({"error": "Service not found or you don't have permission to delete it"}), 404
+    except Exception as e:
+        logger.error(f"Error deleting service: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@api_blueprint.route("/api/events/<event_id>", methods=['DELETE', 'OPTIONS'])
+@token_required
+def delete_event(event_id):
+    """
+    Delete an event by its ID.
+    """
+    chat_id = request.community['chatId']
+    user_info = request.user_info
+
+    try:
+        success = service_manager.delete_event(event_id, chat_id, user_info['username'])
+        if success:
+            return jsonify({"message": "Event deleted successfully"}), 200
+        else:
+            return jsonify({"error": "Event not found or you don't have permission to delete it"}), 404
+    except Exception as e:
+        logger.error(f"Error deleting event: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@api_blueprint.route("/api/news/<news_id>", methods=['DELETE', 'OPTIONS'])
+@token_required
+def delete_news(news_id):
+    """
+    Delete a news item by its ID.
+    """
+    chat_id = request.community['chatId']
+    user_info = request.user_info
+
+    try:
+        success = service_manager.delete_news(news_id, chat_id, user_info['username'])
+        if success:
+            return jsonify({"message": "News item deleted successfully"}), 200
+        else:
+            return jsonify({"error": "News item not found or you don't have permission to delete it"}), 404
+    except Exception as e:
+        logger.error(f"Error deleting news item: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500

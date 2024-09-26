@@ -47,6 +47,10 @@ class BaseEntity:
             entity['_id'] = str(entity['_id'])
         return entities
 
+    def delete(self, id, communityId, username):
+        result = self.collection.delete_one({"id": id, "communityId": communityId, "username": username})
+        return result.deleted_count > 0
+
 class LocalsCommunity:
     def __init__(self, db):
         self.collection = db['communities']
@@ -191,3 +195,15 @@ class ServiceManager:
 
     def search_news(self, communityId):
         return self.news.search(communityId)
+
+    def delete_item(self, id, communityId, username):
+        return self.item.delete(id, communityId, username)
+
+    def delete_service(self, id, communityId, username):
+        return self.service.delete(id, communityId, username)
+
+    def delete_event(self, id, communityId, username):
+        return self.event.delete(id, communityId, username)
+
+    def delete_news(self, id, communityId, username):
+        return self.news.delete(id, communityId, username)
