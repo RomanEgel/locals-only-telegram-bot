@@ -6,14 +6,14 @@ import hmac
 from urllib.parse import parse_qsl
 import logging
 from functools import wraps
-from config import service_manager  # Import the ServiceManager from config
+from config import service_manager, storage_client  # Import storage_client from config
 import json
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 # Define the Blueprint
-api_blueprint = Blueprint('api', __name__)  # Renamed to 'api'
+api_blueprint = Blueprint('api', __name__)
 
 def validate_init_data(init_data: str, bot_token: str) -> tuple[dict, bool]:
     """
@@ -98,6 +98,20 @@ def handle_options_request(f):
             return jsonify({"message": "Preflight request successful"}), 200
         return f(*args, **kwargs)
     return decorated_function
+
+def delete_image_if_exists(entity):
+    if entity and entity.get('image'):
+        try:
+            image_gcs_path = entity['image'].replace('https://storage.googleapis.com/', '')
+            bucket_name, blob_name = image_gcs_path.split('/', 1)
+            bucket = storage_client.bucket(bucket_name)
+            blob = bucket.blob(blob_name)
+            blob.delete()
+            logger.info(f"Deleted image from GCS: {image_gcs_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting image from GCS: {str(e)}", exc_info=True)
+    return False
 
 @api_blueprint.route("/api/init", methods=['POST', 'OPTIONS'])
 @token_required
@@ -186,15 +200,16 @@ def search_news():
 @token_required
 def delete_item(item_id):
     """
-    Delete an item by its ID.
+    Delete an item by its ID and its associated image if it exists.
     """
     chat_id = request.community['chatId']
     user_info = request.user_info
 
     try:
-        success = service_manager.delete_item(item_id, chat_id, user_info['username'])
-        if success:
-            return jsonify({"message": "Item deleted successfully"}), 200
+        deleted_item = service_manager.delete_item(item_id, chat_id, user_info['username'])
+        if deleted_item:
+            image_deleted = delete_image_if_exists(deleted_item)
+            return jsonify({"message": "Item deleted successfully", "image_deleted": image_deleted}), 200
         else:
             return jsonify({"error": "Item not found or you don't have permission to delete it"}), 404
     except Exception as e:
@@ -205,15 +220,16 @@ def delete_item(item_id):
 @token_required
 def delete_service(service_id):
     """
-    Delete a service by its ID.
+    Delete a service by its ID and its associated image if it exists.
     """
     chat_id = request.community['chatId']
     user_info = request.user_info
 
     try:
-        success = service_manager.delete_service(service_id, chat_id, user_info['username'])
-        if success:
-            return jsonify({"message": "Service deleted successfully"}), 200
+        deleted_service = service_manager.delete_service(service_id, chat_id, user_info['username'])
+        if deleted_service:
+            image_deleted = delete_image_if_exists(deleted_service)
+            return jsonify({"message": "Service deleted successfully", "image_deleted": image_deleted}), 200
         else:
             return jsonify({"error": "Service not found or you don't have permission to delete it"}), 404
     except Exception as e:
@@ -224,15 +240,16 @@ def delete_service(service_id):
 @token_required
 def delete_event(event_id):
     """
-    Delete an event by its ID.
+    Delete an event by its ID and its associated image if it exists.
     """
     chat_id = request.community['chatId']
     user_info = request.user_info
 
     try:
-        success = service_manager.delete_event(event_id, chat_id, user_info['username'])
-        if success:
-            return jsonify({"message": "Event deleted successfully"}), 200
+        deleted_event = service_manager.delete_event(event_id, chat_id, user_info['username'])
+        if deleted_event:
+            image_deleted = delete_image_if_exists(deleted_event)
+            return jsonify({"message": "Event deleted successfully", "image_deleted": image_deleted}), 200
         else:
             return jsonify({"error": "Event not found or you don't have permission to delete it"}), 404
     except Exception as e:
@@ -243,15 +260,16 @@ def delete_event(event_id):
 @token_required
 def delete_news(news_id):
     """
-    Delete a news item by its ID.
+    Delete a news item by its ID and its associated image if it exists.
     """
     chat_id = request.community['chatId']
     user_info = request.user_info
 
     try:
-        success = service_manager.delete_news(news_id, chat_id, user_info['username'])
-        if success:
-            return jsonify({"message": "News item deleted successfully"}), 200
+        deleted_news = service_manager.delete_news(news_id, chat_id, user_info['username'])
+        if deleted_news:
+            image_deleted = delete_image_if_exists(deleted_news)
+            return jsonify({"message": "News item deleted successfully", "image_deleted": image_deleted}), 200
         else:
             return jsonify({"error": "News item not found or you don't have permission to delete it"}), 404
     except Exception as e:

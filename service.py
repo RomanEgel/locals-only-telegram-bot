@@ -48,8 +48,11 @@ class BaseEntity:
         return entities
 
     def delete(self, id, communityId, username):
-        result = self.collection.delete_one({"id": id, "communityId": communityId, "username": username})
-        return result.deleted_count > 0
+        deleted_entity = self.collection.find_one_and_delete(
+            {"id": id, "communityId": communityId, "username": username},
+            return_document=ReturnDocument.BEFORE
+        )
+        return deleted_entity
 
 class LocalsCommunity:
     def __init__(self, db):
