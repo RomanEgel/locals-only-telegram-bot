@@ -58,6 +58,8 @@ def handle_telegram_event():
 
         if 'message' in event:
             handle_message(event['message'])
+        elif 'callback_query' in event:
+            handle_callback_query(event['callback_query'])
     except Exception as e:
         logger.error(f"Error handling Telegram event: {str(e)}", exc_info=True)
     
@@ -94,6 +96,65 @@ def handle_message(message):
                 return  # Ignore non-image documents
         handle_hashtag(message, is_caption=True)
 
+def handle_callback_query(callback_query):
+    """
+    Handle callback queries from inline keyboards.
+    """
+    callback_data = callback_query['data']
+
+    if len(callback_data.split(':')) < 3:
+        logger.info(f"Invalid callback data: {callback_data}")
+        return
+
+    # callback_data example: -1002463327873:set_language:ru
+    chat_id = int(callback_data.split(':')[0])
+    logger.info(f"Handling callback query for chat_id: {chat_id}")
+    community = service_manager.get_community_by_chat_id(chat_id)
+    if not community or community.get('status', 'SETUP') == "READY":
+        logger.info(f"Community {chat_id} is already ready")
+        return
+
+    translations = {
+        'en': {
+            'community_app': "Community App",
+            'open_web_app': "Open"
+        },
+        'ru': {
+            'community_app': "Приложение Сообщества",
+            'open_web_app': "Открыть"
+        }
+    }
+    # Split the callback data to determine the action
+    action = callback_data.split(':')[1]
+
+    if action == 'set_language':
+        language = callback_data.split(':')[2]
+        # Update the community language and status
+        service_manager.update_community(chat_id, {'language': language, 'status': 'READY'})
+        keyboard = {
+            'inline_keyboard': [
+                [{'text': translations[language]['open_web_app'], 'url': WEB_APP_LINK + f"?startapp={chat_id}"}]
+            ]
+        }
+        edit_message_text_with_keyboard(chat_id, callback_query['message']['message_id'], translations[language]['community_app'], keyboard)
+    
+
+def edit_message_text_with_keyboard(chat_id, message_id, text, keyboard):
+    """
+    Edit the text of a message with a keyboard.
+    """
+    url = f"{TELEGRAM_API_URL}/editMessageText"
+    payload = {
+        'chat_id': chat_id,
+        'message_id': message_id,
+        'text': text,
+    }
+    if keyboard:
+        payload['reply_markup'] = keyboard
+    response = requests.post(url, json=payload)
+    return response.json()
+
+
 def handle_hashtag(message, is_caption=False):
     """
     Handle a message with a hashtag.
@@ -112,7 +173,7 @@ def handle_hashtag(message, is_caption=False):
     if not community:
         logger.info(f"Community not found for chat_id: {chat_id}")
         return
-    if community.status != "READY":
+    if community.get('status', 'SETUP') != "READY":
         logger.info(f"Community {chat_id} is not ready")
         return
 
@@ -206,7 +267,8 @@ def handle_command(message, command):
         
         community = service_manager.create_community(chat_id, message['chat']['title'], initial_language)
         logger.info(f"Created new community for chat_id: {chat_id} with initial language: {initial_language}")
-        setup_community(chat_id, message['message_id'], initial_language)
+        #setup_community_language(chat_id, message['message_id'], initial_language)
+        setup_community_language_v2(chat_id, message['message_id'], initial_language)
         return
 
     # Extract the command without the bot name if it includes '@'
@@ -223,7 +285,21 @@ def handle_command(message, command):
     elif command == '/app':
         send_inline_keyboard(chat_id, 'community_app', WEB_APP_LINK + f"?startapp={chat_id}", language)
 
-def setup_community(chat_id, message_id, language):
+def setup_community_language_v2(chat_id, message_id, language):
+    """
+    Start the community setup process with language selection.
+    """
+    inline_keyboard = {
+        'inline_keyboard': [
+            [{'text': "English 🇬🇧", 'callback_data': f'{chat_id}:set_language:en'}],
+            [{'text': "Русский 🇷🇺", 'callback_data': f'{chat_id}:set_language:ru'}]
+        ]
+    }
+
+    send_message_with_keyboard(chat_id, 'setup_welcome', inline_keyboard, message_id, language)
+
+
+def setup_community_language(chat_id, message_id, language):
     """
     Start the community setup process with language selection.
     """
@@ -275,7 +351,6 @@ def handle_language_selection(message):
 
     if community:
         service_manager.update_community(chat_id, {'language': language})
-        service_manager.set_ready(chat_id)
         logger.info(f"Updated language to {language} for community {chat_id} and set status to READY")
 
     # Create a keyboard that removes the previous keyboard

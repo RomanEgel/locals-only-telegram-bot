@@ -85,7 +85,7 @@ class LocalsCommunity:
             "chatId": chatId,
             "name": name,
             "language": language,
-            "status": "SETUP"  # Add status field with initial value "SETUP"
+            "status": "SETUP",  # Add status field with initial value "SETUP"
         }
         self.collection.insert_one(community)
         return community
@@ -96,9 +96,6 @@ class LocalsCommunity:
             {"$set": update_data},
             return_document=ReturnDocument.AFTER
         )
-
-    def set_ready(self, chatId):
-        return self.update(chatId, {"status": "READY"})
 
 class LocalsItem(BaseEntity):
     def __init__(self, db):
