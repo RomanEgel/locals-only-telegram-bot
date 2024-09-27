@@ -275,3 +275,87 @@ def delete_news(news_id):
     except Exception as e:
         logger.error(f"Error deleting news item: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+@api_blueprint.route("/api/items/<item_id>", methods=['PUT', 'OPTIONS'])
+@token_required
+def update_item(item_id):
+    """
+    Update an item by its ID.
+    """
+    chat_id = request.community['chatId']
+    user_info = request.user_info
+    new_title = request.json.get('title')
+    new_description = request.json.get('description')
+    new_price = request.json.get('price')
+    new_currency = request.json.get('currency')
+    new_category = request.json.get('category')
+
+    try:
+        updated_item = service_manager.update_item(item_id, chat_id, user_info['username'], new_title, new_description, new_price, new_currency, new_category)
+        return jsonify({"message": "Item updated successfully", "item": updated_item}), 200
+    except Exception as e:
+        logger.error(f"Error updating item: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@api_blueprint.route("/api/services/<service_id>", methods=['PUT', 'OPTIONS'])
+@token_required
+def update_service(service_id):
+    """
+    Update a service by its ID.
+    """
+    chat_id = request.community['chatId']
+    user_info = request.user_info
+
+    new_title = request.json.get('title')
+    new_description = request.json.get('description')
+    new_price = request.json.get('price')
+    new_currency = request.json.get('currency')
+    new_category = request.json.get('category')
+
+    try:
+        updated_service = service_manager.update_service(service_id, chat_id, user_info['username'], new_title, new_description, new_price, new_currency, new_category)
+        return jsonify({"message": "Service updated successfully", "service": updated_service}), 200
+    except Exception as e:
+        logger.error(f"Error updating service: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@api_blueprint.route("/api/events/<event_id>", methods=['PUT', 'OPTIONS'])
+@token_required
+def update_event(event_id):
+    """
+    Update an event by its ID.
+    """
+    chat_id = request.community['chatId']
+    user_info = request.user_info
+
+    new_title = request.json.get('title')
+    new_description = request.json.get('description')
+    new_date = request.json.get('date')
+    new_category = request.json.get('category')
+
+    try:
+        updated_event = service_manager.update_event(event_id, chat_id, user_info['username'], new_title, new_description, new_date, new_category)
+        return jsonify({"message": "Event updated successfully", "event": updated_event}), 200
+    except Exception as e:
+        logger.error(f"Error updating event: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@api_blueprint.route("/api/news/<news_id>", methods=['PUT', 'OPTIONS'])
+@token_required
+def update_news(news_id):
+    """
+    Update a news item by its ID.
+    """
+    chat_id = request.community['chatId']
+    user_info = request.user_info
+
+    new_title = request.json.get('title')
+    new_description = request.json.get('description')
+    new_category = request.json.get('category')
+
+    try:
+        updated_news = service_manager.update_news(news_id, chat_id, user_info['username'], new_title, new_description, new_category)
+        return jsonify({"message": "News item updated successfully", "news": updated_news}), 200
+    except Exception as e:
+        logger.error(f"Error updating news item: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500

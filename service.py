@@ -52,7 +52,26 @@ class BaseEntity:
             {"id": id, "communityId": communityId, "username": username},
             return_document=ReturnDocument.BEFORE
         )
+        deleted_entity['_id'] = str(deleted_entity['_id'])
         return deleted_entity
+    
+    def update(self, id, chat_id, username, **kwargs):
+        # Filter out None values from kwargs
+        update_fields = {k: v for k, v in kwargs.items() if v is not None}
+        
+        # If there are no non-None values, return existing entity
+        if not update_fields:
+            updated_entity = self.collection.find_one({"id": id, "communityId": chat_id, "username": username})
+        else:
+            # Update the document
+            updated_entity = self.collection.find_one_and_update(
+                {"id": id, "communityId": chat_id, "username": username},
+                {"$set": update_fields},
+                return_document=ReturnDocument.AFTER
+            )
+
+        updated_entity['_id'] = str(updated_entity['_id'])
+        return updated_entity
 
 class LocalsCommunity:
     def __init__(self, db):
@@ -180,33 +199,45 @@ class ServiceManager:
 
     def search_items(self, communityId):
         return self.item.search(communityId)
+    
+    def update_item(self, id, chat_id, username, title, description, price, currency, category):
+        return self.item.update(id, chat_id, username, title=title, description=description, price=price, currency=currency, category=category)
+
+    def delete_item(self, id, communityId, username):
+        return self.item.delete(id, communityId, username)
 
     def create_service(self, id, title, price, currency, image, author, username, publishedAt, category, description, communityId, messageId):
         return self.service.create(id, title, image, author, username, publishedAt, category, description, communityId, messageId, price=price, currency=currency)
 
     def search_services(self, communityId):
         return self.service.search(communityId)
+    
+    def update_service(self, id, chat_id, username, title, description, price, currency, category):
+        return self.service.update(id, chat_id, username, title=title, description=description, price=price, currency=currency, category=category)
+
+    def delete_service(self, id, communityId, username):
+        return self.service.delete(id, communityId, username)
 
     def create_event(self, id, title, date, image, author, username, publishedAt, category, description, communityId, messageId):
         return self.event.create(id, title, image, author, username, publishedAt, category, description, communityId, messageId, date=date)
 
     def search_events(self, communityId):
         return self.event.search(communityId)
+    
+    def update_event(self, id, chat_id, username, title, description, date, category):
+        return self.event.update(id, chat_id, username, title=title, description=description, date=date, category=category)
+    
+    def delete_event(self, id, communityId, username):
+        return self.event.delete(id, communityId, username)
 
     def create_news(self, id, title, image, author, username, publishedAt, category, description, communityId, messageId):
         return self.news.create(id, title, image, author, username, publishedAt, category, description, communityId, messageId)
 
     def search_news(self, communityId):
         return self.news.search(communityId)
-
-    def delete_item(self, id, communityId, username):
-        return self.item.delete(id, communityId, username)
-
-    def delete_service(self, id, communityId, username):
-        return self.service.delete(id, communityId, username)
-
-    def delete_event(self, id, communityId, username):
-        return self.event.delete(id, communityId, username)
+    
+    def update_news(self, id, chat_id, username, title, description, category):
+        return self.news.update(id, chat_id, username, title=title, description=description, category=category)
 
     def delete_news(self, id, communityId, username):
         return self.news.delete(id, communityId, username)
