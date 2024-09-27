@@ -20,7 +20,7 @@ class BaseEntity:
             "category": (str, lambda: "Uncategorized", True, None, None),
             "description": (str, lambda: "No description provided", True, None, None),
             "publishedAt": (datetime, lambda: datetime.now(), False, None, None),
-            "communityId": (int, lambda: None, False, None, None),
+            "communityId": (str, lambda: None, False, None, None),
             "messageId": (str, lambda: None, False, None, None)  # Add messageId
         }
 
@@ -55,17 +55,17 @@ class BaseEntity:
         deleted_entity['_id'] = str(deleted_entity['_id'])
         return deleted_entity
     
-    def update(self, id, chat_id, username, **kwargs):
+    def update(self, id, communityId, username, **kwargs):
         # Filter out None values from kwargs
         update_fields = {k: v for k, v in kwargs.items() if v is not None}
         
         # If there are no non-None values, return existing entity
         if not update_fields:
-            updated_entity = self.collection.find_one({"id": id, "communityId": chat_id, "username": username})
+            updated_entity = self.collection.find_one({"id": id, "communityId": communityId, "username": username})
         else:
             # Update the document
             updated_entity = self.collection.find_one_and_update(
-                {"id": id, "communityId": chat_id, "username": username},
+                {"id": id, "communityId": communityId, "username": username},
                 {"$set": update_fields},
                 return_document=ReturnDocument.AFTER
             )
@@ -78,24 +78,35 @@ class LocalsCommunity:
         self.collection = db['communities']
 
     def get_by_chat_id(self, chatId):
-        return self.collection.find_one({"chatId": chatId})
+        community = self.collection.find_one({"chatId": chatId})
+        if community:
+            community['id'] = community['_id']
+            community.pop('_id', None)
+        return community
 
     def create(self, chatId, name, language="en"):
         community = {
+            "_id": str(uuid.uuid4()),
             "chatId": chatId,
             "name": name,
             "language": language,
             "status": "SETUP",  # Add status field with initial value "SETUP"
         }
         self.collection.insert_one(community)
+        community['id'] = community['_id']
+        community.pop('_id', None)
         return community
 
-    def update(self, chatId, update_data):
-        return self.collection.find_one_and_update(
-            {"chatId": chatId},
+    def update(self, communityId, update_data):
+        community = self.collection.find_one_and_update(
+            {"_id": communityId},
             {"$set": update_data},
             return_document=ReturnDocument.AFTER
         )
+        if community:
+            community['id'] = community['_id']
+            community.pop('_id', None)
+        return community
 
 class LocalsItem(BaseEntity):
     def __init__(self, db):
@@ -187,7 +198,13 @@ class ServiceManager:
         self.news = LocalsNews(db)
 
     def get_community_by_chat_id(self, chatId):
-        return self.community.get_by_chat_id(chatId)
+        community = self.community.get_by_chat_id(chatId)
+        if community:
+            # Remove _id from community
+            community['id'] = community['chatId']
+            community.pop('_id', None)
+            community.pop('chatId', None)
+        return community
 
     def create_community(self, chatId, title, language='en'):
         return self.community.create(chatId, title, language)
@@ -201,8 +218,8 @@ class ServiceManager:
     def search_items(self, communityId):
         return self.item.search(communityId)
     
-    def update_item(self, id, chat_id, username, title, description, price, currency, category):
-        return self.item.update(id, chat_id, username, title=title, description=description, price=price, currency=currency, category=category)
+    def update_item(self, id, communityId, username, title, description, price, currency, category):
+        return self.item.update(id, communityId, username, title=title, description=description, price=price, currency=currency, category=category)
 
     def delete_item(self, id, communityId, username):
         return self.item.delete(id, communityId, username)
@@ -213,8 +230,8 @@ class ServiceManager:
     def search_services(self, communityId):
         return self.service.search(communityId)
     
-    def update_service(self, id, chat_id, username, title, description, price, currency, category):
-        return self.service.update(id, chat_id, username, title=title, description=description, price=price, currency=currency, category=category)
+    def update_service(self, id, communityId, username, title, description, price, currency, category):
+        return self.service.update(id, communityId, username, title=title, description=description, price=price, currency=currency, category=category)
 
     def delete_service(self, id, communityId, username):
         return self.service.delete(id, communityId, username)
@@ -225,8 +242,8 @@ class ServiceManager:
     def search_events(self, communityId):
         return self.event.search(communityId)
     
-    def update_event(self, id, chat_id, username, title, description, date, category):
-        return self.event.update(id, chat_id, username, title=title, description=description, date=date, category=category)
+    def update_event(self, id, communityId, username, title, description, date, category):
+        return self.event.update(id, communityId, username, title=title, description=description, date=date, category=category)
     
     def delete_event(self, id, communityId, username):
         return self.event.delete(id, communityId, username)
@@ -237,8 +254,8 @@ class ServiceManager:
     def search_news(self, communityId):
         return self.news.search(communityId)
     
-    def update_news(self, id, chat_id, username, title, description, category):
-        return self.news.update(id, chat_id, username, title=title, description=description, category=category)
+    def update_news(self, id, communityId, username, title, description, category):
+        return self.news.update(id, communityId, username, title=title, description=description, category=category)
 
     def delete_news(self, id, communityId, username):
         return self.news.delete(id, communityId, username)

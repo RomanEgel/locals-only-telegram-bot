@@ -58,8 +58,6 @@ def handle_telegram_event():
 
         if 'message' in event:
             handle_message(event['message'])
-        elif 'callback_query' in event:
-            handle_callback_query(event['callback_query'])
     except Exception as e:
         logger.error(f"Error handling Telegram event: {str(e)}", exc_info=True)
     
@@ -69,8 +67,8 @@ def handle_message(message):
     """
     Handle incoming messages.
     """
-    if message['from']['is_bot']:
-        return  # Ignore messages from bots
+    if message['from']['is_bot'] and message['from']['username'] != 'GroupAnonymousBot':
+        return  # Ignore messages from bots except anonymous admins
 
     chat_id = message['chat']['id']
     chat_type = message['chat']['type']
@@ -83,9 +81,7 @@ def handle_message(message):
         logger.info(f"Message is not from a group chat, skipping.")
         return
 
-    if text in ["English 🇬🇧", "Русский 🇷🇺"]:
-        handle_language_selection(message)
-    elif text.startswith('/'):
+    if text.startswith('/'):
         handle_command(message, text)
     elif '#' in text:
         handle_hashtag(message)
@@ -96,64 +92,6 @@ def handle_message(message):
                 return  # Ignore non-image documents
         handle_hashtag(message, is_caption=True)
 
-def handle_callback_query(callback_query):
-    """
-    Handle callback queries from inline keyboards.
-    """
-    callback_data = callback_query['data']
-
-    if len(callback_data.split(':')) < 3:
-        logger.info(f"Invalid callback data: {callback_data}")
-        return
-
-    # callback_data example: -1002463327873:set_language:ru
-    chat_id = int(callback_data.split(':')[0])
-    logger.info(f"Handling callback query for chat_id: {chat_id}")
-    community = service_manager.get_community_by_chat_id(chat_id)
-    if not community or community.get('status', 'SETUP') == "READY":
-        logger.info(f"Community {chat_id} is already ready")
-        return
-
-    translations = {
-        'en': {
-            'community_app': "Community App",
-            'open_web_app': "Open"
-        },
-        'ru': {
-            'community_app': "Приложение Сообщества",
-            'open_web_app': "Открыть"
-        }
-    }
-    # Split the callback data to determine the action
-    action = callback_data.split(':')[1]
-
-    if action == 'set_language':
-        language = callback_data.split(':')[2]
-        # Update the community language and status
-        service_manager.update_community(chat_id, {'language': language, 'status': 'READY'})
-        keyboard = {
-            'inline_keyboard': [
-                [{'text': translations[language]['open_web_app'], 'url': WEB_APP_LINK + f"?startapp={chat_id}"}]
-            ]
-        }
-        edit_message_text_with_keyboard(chat_id, callback_query['message']['message_id'], translations[language]['community_app'], keyboard)
-    
-
-def edit_message_text_with_keyboard(chat_id, message_id, text, keyboard):
-    """
-    Edit the text of a message with a keyboard.
-    """
-    url = f"{TELEGRAM_API_URL}/editMessageText"
-    payload = {
-        'chat_id': chat_id,
-        'message_id': message_id,
-        'text': text,
-    }
-    if keyboard:
-        payload['reply_markup'] = keyboard
-    response = requests.post(url, json=payload)
-    return response.json()
-
 
 def handle_hashtag(message, is_caption=False):
     """
@@ -163,6 +101,10 @@ def handle_hashtag(message, is_caption=False):
     message_id = message['message_id']
     text = message['caption'] if is_caption else message['text']
     username = message['from']['username']  # Get username
+
+    if message['from']['username'] == 'GroupAnonymousBot':
+        logger.info(f"Message from anonymous admin, skipping.")
+        return
     
     hashtag = extract_valid_hashtag(text)
     if not hashtag:
@@ -174,7 +116,7 @@ def handle_hashtag(message, is_caption=False):
         logger.info(f"Community not found for chat_id: {chat_id}")
         return
     if community.get('status', 'SETUP') != "READY":
-        logger.info(f"Community {chat_id} is not ready")
+        logger.info(f"Community {community['id']} is not ready")
         return
 
     language = community.get('language', 'en')
@@ -201,10 +143,10 @@ def handle_hashtag(message, is_caption=False):
             elif key == 'username':
                 extracted_info[key] = username  # Set username
             elif key == 'image':
-                image_url = process_image_or_document(message, chat_id)
+                image_url = process_image_or_document(message, community['id'])
                 extracted_info[key] = image_url if image_url else default_value()
             elif key == 'communityId':
-                extracted_info[key] = community['chatId']
+                extracted_info[key] = community['id']
             elif key == 'messageId':
                 extracted_info[key] = message['message_id']  # Set messageId
             else:
@@ -267,9 +209,6 @@ def handle_command(message, command):
         
         community = service_manager.create_community(chat_id, message['chat']['title'], initial_language)
         logger.info(f"Created new community for chat_id: {chat_id} with initial language: {initial_language}")
-        #setup_community_language(chat_id, message['message_id'], initial_language)
-        setup_community_language_v2(chat_id, message['message_id'], initial_language)
-        return
 
     # Extract the command without the bot name if it includes '@'
     command = command.split('@')[0]
@@ -283,84 +222,7 @@ def handle_command(message, command):
     elif command == '/help':
         send_message(chat_id, 'help', language)
     elif command == '/app':
-        send_inline_keyboard(chat_id, 'community_app', WEB_APP_LINK + f"?startapp={chat_id}", language)
-
-def setup_community_language_v2(chat_id, message_id, language):
-    """
-    Start the community setup process with language selection.
-    """
-    inline_keyboard = {
-        'inline_keyboard': [
-            [{'text': "English 🇬🇧", 'callback_data': f'{chat_id}:set_language:en'}],
-            [{'text': "Русский 🇷🇺", 'callback_data': f'{chat_id}:set_language:ru'}]
-        ]
-    }
-
-    send_message_with_keyboard(chat_id, 'setup_welcome', inline_keyboard, message_id, language)
-
-
-def setup_community_language(chat_id, message_id, language):
-    """
-    Start the community setup process with language selection.
-    """
-    keyboard = {
-        'keyboard': [
-            [{'text': "English 🇬🇧"}, {'text': "Русский 🇷🇺"}]
-        ],
-        'one_time_keyboard': True,
-        'selective': True
-    }
-
-    send_message_with_keyboard(chat_id, 'setup_welcome', keyboard, message_id, language)
-
-def send_message_with_keyboard(chat_id, text_key, keyboard, reply_to_message_id, language='en'):
-    translations = {
-        'en': {
-            'setup_welcome': "Welcome to Locals Only! Please select your preferred language for the community:",
-            'setup_complete': "Great! You've selected English. Your community is now set up and ready to use!",
-        },
-        'ru': {
-            'setup_welcome': "Добро пожаловать в Locals Only! Пожалуйста, выберите предпочитаемый язык сообщества:",
-            'setup_complete': "Отлично! Вы выбрали русский язык. Ваше сообщество теперь настроено и готово к использованию!",
-        }
-    }
-
-    text = translations[language][text_key]
-
-    url = f"{TELEGRAM_API_URL}/sendMessage"
-    payload = {
-        'chat_id': chat_id,
-        'text': text,
-        'reply_markup': keyboard,
-        'reply_parameters': {
-            'message_id': reply_to_message_id
-        }
-    }
-    response = requests.post(url, json=payload)
-    return response.json()
-
-def handle_language_selection(message):
-    chat_id = message['chat']['id']
-    language = "en" if message['text'] == "English 🇬🇧" else "ru"
-
-    # Save the selected language for the community
-    community = service_manager.get_community_by_chat_id(chat_id)
-    if community.status == "READY":
-        logger.info(f"Community {chat_id} is already ready")
-        return
-
-    if community:
-        service_manager.update_community(chat_id, {'language': language})
-        logger.info(f"Updated language to {language} for community {chat_id} and set status to READY")
-
-    # Create a keyboard that removes the previous keyboard
-    keyboard = {
-        'remove_keyboard': True,
-        'selective': True
-    }
-
-    send_message_with_keyboard(chat_id, 'setup_complete', keyboard, message['message_id'], language)
-    send_inline_keyboard(chat_id, 'community_app', WEB_APP_LINK + f"?startapp={chat_id}", language)
+        send_inline_keyboard(chat_id, 'community_app', WEB_APP_LINK + f"?startapp={community['id']}", language)
 
 def send_inline_keyboard(chat_id, text_key, url, language='en'):
     translations = {
@@ -428,27 +290,27 @@ def upload_to_gcs(file_content, destination_blob_name):
     
     return blob.public_url
 
-def process_image(file_id, chat_id):
+def process_image(file_id, community_id):
     """
     Download image from Telegram and upload to GCS.
     """
     try:
         file_content = download_image(file_id)
-        file_url = upload_to_gcs(file_content, f"{chat_id}/{file_id}.jpg")
+        file_url = upload_to_gcs(file_content, f"{community_id}/{file_id}.jpg")
         return file_url
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}", exc_info=True)
         return None
 
-def process_image_or_document(message, chat_id):
+def process_image_or_document(message, community_id):
     """
     Process image from photo or document in the message.
     """
     if 'photo' in message:
-        return process_image(message['photo'][-1]['file_id'], chat_id)
+        return process_image(message['photo'][-1]['file_id'], community_id)
     elif 'document' in message:
         mime_type = message['document'].get('mime_type', '')
         if mime_type.startswith('image/'):
-            return process_image(message['document']['file_id'], chat_id)
-    logger.info(f"No valid image found in message for chat_id: {chat_id}")
+            return process_image(message['document']['file_id'], community_id)
+    logger.info(f"No valid image found in message for community id: {community_id}")
     return None  # Return None if no valid image is found
