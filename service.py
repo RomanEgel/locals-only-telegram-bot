@@ -77,6 +77,13 @@ class LocalsCommunity:
     def __init__(self, db):
         self.collection = db['communities']
 
+    def get_by_id(self, communityId):
+        community = self.collection.find_one({"_id": communityId})
+        if community:
+            community['id'] = community['_id']
+            community.pop('_id', None)
+        return community
+
     def get_by_chat_id(self, chatId):
         community = self.collection.find_one({"chatId": chatId})
         if community:
@@ -197,14 +204,11 @@ class ServiceManager:
         self.event = LocalsEvent(db)
         self.news = LocalsNews(db)
 
+    def get_community_by_id(self, communityId):
+        return self.community.get_by_id(communityId)
+
     def get_community_by_chat_id(self, chatId):
-        community = self.community.get_by_chat_id(chatId)
-        if community:
-            # Remove _id from community
-            community['id'] = community['chatId']
-            community.pop('_id', None)
-            community.pop('chatId', None)
-        return community
+        return self.community.get_by_chat_id(chatId)
 
     def create_community(self, chatId, title, language='en'):
         return self.community.create(chatId, title, language)

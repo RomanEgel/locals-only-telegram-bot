@@ -63,12 +63,7 @@ def token_required(fail_if_not_ready=True):
                 if not is_valid:
                     return jsonify({"valid": False}), 400
 
-                try:
-                    start_param = int(parsed_data.get('start_param', ''))
-                except ValueError:
-                    return jsonify({"valid": False}), 400
-
-                community = service_manager.get_community_by_chat_id(start_param)
+                community = service_manager.get_community_by_id(parsed_data.get('start_param', ''))
 
                 if not community:
                     return jsonify({"valid": False}), 404
@@ -82,9 +77,6 @@ def token_required(fail_if_not_ready=True):
                 if admins is None:
                     return jsonify({"error": "Failed to get chat administrators"}), 500
 
-                admin_usernames = [admin['user']['username'] for admin in admins if 'username' in admin['user']]
-                
-                request.is_admin = user_info['username'] in admin_usernames  # Store admin status in request context
                 request.parsed_data = parsed_data  # Store parsed data in request context
                 request.community = community  # Store community in request context
                 # Extract user information from parsed_data
@@ -96,6 +88,9 @@ def token_required(fail_if_not_ready=True):
                     logger.error(f"Error decoding user info: {user_info_str}")
                     return jsonify({"error": "Invalid user information"}), 400
 
+                admin_usernames = [admin['user']['username'] for admin in admins if 'username' in admin['user']]
+                
+                request.is_admin = user_info['username'] in admin_usernames  # Store admin status in request context
                 # Extract language code, defaulting to 'en' if not present
                 request.language_code = user_info.get('language_code', 'en')
                 return f(*args, **kwargs)
