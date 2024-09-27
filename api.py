@@ -68,7 +68,7 @@ def token_required(f):
 
             community = service_manager.get_community_by_chat_id(start_param)
 
-            if not community:
+            if not community or community['status'] != 'READY':
                 return jsonify({"valid": False}), 404
 
             request.parsed_data = parsed_data  # Store parsed data in request context

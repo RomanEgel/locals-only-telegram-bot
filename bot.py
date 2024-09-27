@@ -112,7 +112,10 @@ def handle_hashtag(message, is_caption=False):
     if not community:
         logger.info(f"Community not found for chat_id: {chat_id}")
         return
-    
+    if community.status != "READY":
+        logger.info(f"Community {chat_id} is not ready")
+        return
+
     language = community.get('language', 'en')
     
     entity_type = hashtag  # Assuming hashtag corresponds to entity_type
@@ -266,9 +269,14 @@ def handle_language_selection(message):
 
     # Save the selected language for the community
     community = service_manager.get_community_by_chat_id(chat_id)
+    if community.status == "READY":
+        logger.info(f"Community {chat_id} is already ready")
+        return
+
     if community:
         service_manager.update_community(chat_id, {'language': language})
-        logger.info(f"Updated language to {language} for community {chat_id}")
+        service_manager.set_ready(chat_id)
+        logger.info(f"Updated language to {language} for community {chat_id} and set status to READY")
 
     # Create a keyboard that removes the previous keyboard
     keyboard = {
