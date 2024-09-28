@@ -18,11 +18,12 @@ def get_language_display_name(language_code):
     }
     return language_map.get(language_code, 'Unknown')
 
-def extract_entity_info_with_ai(text, entity_class, language):
+def extract_entity_info_with_ai(text, existing_categories, community_name, entity_class, language):
     """
     Extract entity information from text using OpenAI.
     Only return the extracted info if the confidence score is above the threshold.
     """
+    logger.info(f"Existing categories: {existing_categories}")
     confidence_threshold = get_confidence_threshold()
     language_display_name = get_language_display_name(language)
 
@@ -53,6 +54,10 @@ def extract_entity_info_with_ai(text, entity_class, language):
     }}
 
     Important: For date fields, use the ISO format "YYYY-MM-DDTHH:MM:SS".
+    
+    Categories to take into account: {existing_categories}. If any of the categories match the text exactly - use it. But if you're not certain or if it's only partially related - come up with a new category. 
+    Example: Categories: ['Clothes'], and text about gopro with accessories like handle, batteries, etc - you should come up with a new category 'Electronics'.
+    Example: Categories: ['Electronics'], and text about a new iPhone 15 - you should use existing category 'Electronics'.
 
     The current date is {current_date}.
     Also, provide a confidence score (0-100) indicating how well the extracted information matches the given text. Lower the score if many fields are null.
@@ -78,7 +83,7 @@ def extract_entity_info_with_ai(text, entity_class, language):
     response = openai.ChatCompletion.create(
         model="gpt-4o-mini", 
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that extracts structured information from text."},
+            {"role": "system", "content": f"You are a helpful assistant that extracts structured information from text. The text is a message from a Telegram user who is part of the '{community_name}' community. Keep that in mind when extracting information."},
             {"role": "user", "content": prompt}
         ],
         temperature=0.2,

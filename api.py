@@ -252,7 +252,7 @@ def delete_item(item_id):
     is_admin = request.is_admin
 
     try:
-        deleted_item = service_manager.delete_item(item_id, community_id, user_info['username'], is_admin)
+        deleted_item = service_manager.delete_item(item_id, community_id, user_info['username'])
         if deleted_item:
             image_deleted = delete_image_if_exists(deleted_item)
             return jsonify({"message": "Item deleted successfully", "image_deleted": image_deleted}), 200
@@ -273,7 +273,7 @@ def delete_service(service_id):
     is_admin = request.is_admin
 
     try:
-        deleted_service = service_manager.delete_service(service_id, community_id, user_info['username'], is_admin)
+        deleted_service = service_manager.delete_service(service_id, community_id, user_info['username'])
         if deleted_service:
             image_deleted = delete_image_if_exists(deleted_service)
             return jsonify({"message": "Service deleted successfully", "image_deleted": image_deleted}), 200
@@ -294,7 +294,7 @@ def delete_event(event_id):
     is_admin = request.is_admin
 
     try:
-        deleted_event = service_manager.delete_event(event_id, community_id, user_info['username'], is_admin)
+        deleted_event = service_manager.delete_event(event_id, community_id, user_info['username'])
         if deleted_event:
             image_deleted = delete_image_if_exists(deleted_event)
             return jsonify({"message": "Event deleted successfully", "image_deleted": image_deleted}), 200
@@ -315,7 +315,7 @@ def delete_news(news_id):
     is_admin = request.is_admin
 
     try:
-        deleted_news = service_manager.delete_news(news_id, community_id, user_info['username'], is_admin)
+        deleted_news = service_manager.delete_news(news_id, community_id, user_info['username'])
         if deleted_news:
             image_deleted = delete_image_if_exists(deleted_news)
             return jsonify({"message": "News item deleted successfully", "image_deleted": image_deleted}), 200
@@ -341,7 +341,7 @@ def update_item(item_id):
     new_category = request.json.get('category')
 
     try:
-        updated_item = service_manager.update_item(item_id, community_id, user_info['username'], is_admin, new_title, new_description, new_price, new_currency, new_category)
+        updated_item = service_manager.update_item(item_id, community_id, user_info['username'], new_title, new_description, new_price, new_currency, new_category)
         return jsonify({"message": "Item updated successfully", "item": updated_item}), 200
     except Exception as e:
         logger.error(f"Error updating item: {str(e)}", exc_info=True)

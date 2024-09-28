@@ -46,6 +46,10 @@ class BaseEntity:
         for entity in entities:
             entity['_id'] = str(entity['_id'])
         return entities
+    
+    def get_categories_by_community_id(self, communityId):
+        categories = self.collection.distinct("category", {"communityId": communityId})
+        return categories
 
     def delete(self, id, communityId, username):
         deleted_entity = self.collection.find_one_and_delete(
@@ -222,6 +226,9 @@ class ServiceManager:
     def search_items(self, communityId):
         return self.item.search(communityId)
     
+    def get_item_categories_by_community_id(self, communityId):
+        return self.item.get_categories_by_community_id(communityId)
+    
     def update_item(self, id, communityId, username, title, description, price, currency, category):
         return self.item.update(id, communityId, username, title=title, description=description, price=price, currency=currency, category=category)
 
@@ -233,6 +240,9 @@ class ServiceManager:
 
     def search_services(self, communityId):
         return self.service.search(communityId)
+    
+    def get_service_categories_by_community_id(self, communityId):
+        return self.service.get_categories_by_community_id(communityId)
     
     def update_service(self, id, communityId, username, title, description, price, currency, category):
         return self.service.update(id, communityId, username, title=title, description=description, price=price, currency=currency, category=category)
@@ -246,6 +256,9 @@ class ServiceManager:
     def search_events(self, communityId):
         return self.event.search(communityId)
     
+    def get_event_categories_by_community_id(self, communityId):
+        return self.event.get_categories_by_community_id(communityId)
+    
     def update_event(self, id, communityId, username, title, description, date, category):
         return self.event.update(id, communityId, username, title=title, description=description, date=date, category=category)
     
@@ -257,6 +270,9 @@ class ServiceManager:
 
     def search_news(self, communityId):
         return self.news.search(communityId)
+    
+    def get_news_categories_by_community_id(self, communityId):
+        return self.news.get_categories_by_community_id(communityId)
     
     def update_news(self, id, communityId, username, title, description, category):
         return self.news.update(id, communityId, username, title=title, description=description, category=category)

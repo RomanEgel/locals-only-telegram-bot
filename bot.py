@@ -136,7 +136,17 @@ def handle_hashtag(message, is_caption=False):
         return
 
     text_without_hashtag = text.replace(f'#{hashtag}', '').strip()
-    extracted_info = extract_entity_info_with_ai(text_without_hashtag, entity_class, language)
+
+    if entity_type == 'event':
+        existing_categories = service_manager.get_event_categories_by_community_id(community['id'])
+    elif entity_type == 'news':
+        existing_categories = service_manager.get_news_categories_by_community_id(community['id'])
+    elif entity_type == 'item':
+        existing_categories = service_manager.get_item_categories_by_community_id(community['id'])
+    elif entity_type == 'service':
+        existing_categories = service_manager.get_service_categories_by_community_id(community['id'])
+
+    extracted_info = extract_entity_info_with_ai(text_without_hashtag, existing_categories, community['name'], entity_class, language)
     
     if extracted_info is None:
         logger.info(f"Failed to extract {entity_type} information")
