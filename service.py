@@ -213,8 +213,8 @@ class ServiceManager:
     def create_community(self, chatId, title, language='en'):
         return self.community.create(chatId, title, language)
 
-    def update_community(self, chatId, update_data):
-        return self.community.update(chatId, update_data)
+    def update_community(self, communityId, update_data):
+        return self.community.update(communityId, update_data)
 
     def create_item(self, id, title, price, currency, image, author, username, publishedAt, category, description, communityId, messageId):
         return self.item.create(id, title, image, author, username, publishedAt, category, description, communityId, messageId, price=price, currency=currency)

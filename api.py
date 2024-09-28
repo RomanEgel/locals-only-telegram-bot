@@ -155,6 +155,36 @@ def handle_theming():
     logger.info(f"Received theme parameters: {request.json}")
     return jsonify({"message": "Theme parameters received successfully"}), 200
 
+
+@api_blueprint.route("/api/community/_setup", methods=['POST', 'OPTIONS'])
+@token_required(fail_if_not_ready=False)
+def setup_community():
+    """
+    Setup a community.
+    """
+    logger.info(f"Received setup parameters: {request.json}")
+
+    if not request.is_admin:
+        return jsonify({"error": "You don't have permission to setup the community"}), 403
+
+    if request.community['status'] == 'READY':
+        return jsonify({"error": "Community is already setup"}), 400
+
+    setup_data = request.json
+    
+    if not setup_data.get('language') or not setup_data.get('location') or not setup_data.get('description'):
+        return jsonify({"error": "Missing required parameters"}), 400
+
+    service_manager.update_community(request.community['id'], {
+        "status": "READY",
+        "language": setup_data.get('language'),
+        "location": setup_data.get('location'),
+        "description": setup_data.get('description')
+    })
+    return jsonify({"message": "Setup parameters received successfully"}), 200
+
+
+
 @api_blueprint.route("/api/items", methods=['GET', 'OPTIONS'])
 @token_required()
 def search_items():
