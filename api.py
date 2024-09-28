@@ -172,14 +172,14 @@ def setup_community():
 
     setup_data = request.json
     
-    if not setup_data.get('language') or not setup_data.get('location') or not setup_data.get('description'):
+    if not setup_data.get('language') or not setup_data.get('location') or not setup_data.get('entitySettings'):
         return jsonify({"error": "Missing required parameters"}), 400
 
     service_manager.update_community(request.community['id'], {
         "status": "READY",
         "language": setup_data.get('language'),
         "location": setup_data.get('location'),
-        "description": setup_data.get('description')
+        "entitySettings": setup_data.get('entitySettings')
     })
     return jsonify({"message": "Setup parameters received successfully"}), 200
 

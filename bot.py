@@ -105,23 +105,31 @@ def handle_hashtag(message, is_caption=False):
     if message['from']['username'] == 'GroupAnonymousBot':
         logger.info(f"Message from anonymous admin, skipping.")
         return
-    
-    hashtag = extract_valid_hashtag(text)
-    if not hashtag:
-        logger.info(f"No supported hashtag found in message: {text}")
-        return
 
     community = service_manager.get_community_by_chat_id(chat_id)
     if not community:
         logger.info(f"Community not found for chat_id: {chat_id}")
         return
+    
+
     if community.get('status', 'SETUP') != "READY":
         logger.info(f"Community {community['id']} is not ready")
         return
 
+    entity_settings = community.get('entitySettings', {
+        'eventHashtag': '#event',
+        'itemHashtag': '#item',
+        'serviceHashtag': '#service',
+        'newsHashtag': '#news'
+    })
+
+    entity_type, hashtag = extract_entity_type_from_hashtag(text, entity_settings)
+    if not entity_type:
+        logger.info(f"No supported hashtag found in message: {text}")
+        return
+
     language = community.get('language', 'en')
     
-    entity_type = hashtag  # Assuming hashtag corresponds to entity_type
     entity_class = get_entity_class(entity_type)
     if not entity_class:
         logger.info(f"Unsupported entity type: {entity_type}")
@@ -154,19 +162,19 @@ def handle_hashtag(message, is_caption=False):
 
     # Process the extracted_info
     try:
-        if hashtag == 'event':
+        if entity_type == 'event':
             service_manager.create_event(**extracted_info)
-        elif hashtag == 'news':
+        elif entity_type == 'news':
             service_manager.create_news(**extracted_info)
-        elif hashtag == 'item':
+        elif entity_type == 'item':
             service_manager.create_item(**extracted_info)
-        elif hashtag == 'service':
+        elif entity_type == 'service':
             service_manager.create_service(**extracted_info)
         
-        logger.info(f"Processed {hashtag} for chat_id: {chat_id}")
+        logger.info(f"Processed {entity_type} for chat_id: {chat_id}")
         set_message_reaction(chat_id, message_id, "⚡")
     except Exception as e:
-        logger.error(f"Error processing {hashtag}: {str(e)}", exc_info=True)
+        logger.error(f"Error processing {entity_type}: {str(e)}", exc_info=True)
 
 def set_message_reaction(chat_id, message_id, emoji):
     """
@@ -182,16 +190,18 @@ def set_message_reaction(chat_id, message_id, emoji):
     if response.status_code != 200:
         logger.error(f"Failed to set reaction: {response.text}")
 
-def extract_valid_hashtag(text):
+def extract_entity_type_from_hashtag(text, entity_settings):
     """
     Extract the first valid hashtag from the message.
     """
-    valid_hashtags = ['event', 'news', 'item', 'service']
-    hashtags = re.findall(r'#(\w+)', text.lower())
+    valid_hashtags = [entity_settings['eventHashtag'].lower(), entity_settings['newsHashtag'].lower(), entity_settings['itemHashtag'].lower(), entity_settings['serviceHashtag'].lower()]
+    hashtags = re.findall(r'(#\w+)', text.lower())
     for hashtag in hashtags:
         if hashtag in valid_hashtags:
-            return hashtag
-    return None
+            for key, value in entity_settings.items():
+                if value == hashtag:
+                    return key.replace('Hashtag', ''), hashtag
+    return None, None
 
 def handle_command(message, command):
     """
