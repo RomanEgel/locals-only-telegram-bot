@@ -131,7 +131,7 @@ class LocalsItem(BaseEntity):
             "currency": (str, lambda: None, True, "The currency code for the price. Use standard 3-letter currency codes.", "Examples: USD, EUR, GBP, RUB"),
             "title": (str, lambda: "Untitled", True, "A short, descriptive title for the item.", "Examples: 'Vintage Guitar', 'iPhone 12 Pro', 'Handmade Pottery Set'"),
             "category": (str, lambda: "Uncategorized", True, "The category the item belongs to. Use general terms.", "Examples: 'Electronics', 'Furniture', 'Clothing', 'Books'"),
-            "description": (str, lambda: "No description provided", True, "A detailed description of the item, including condition, features, etc.", "Example: 'Lightly used iPhone 12 Pro, 256GB, Pacific Blue. Comes with original box and accessories. Minor scratches on the back.'")
+            "description": (str, lambda: "No description provided", True, "A detailed description of the item, including condition, features, etc. Use all provided information to describe the item.", "")
         })
         return structure
 
@@ -151,7 +151,7 @@ class LocalsService(BaseEntity):
             "currency": (str, lambda: None, True, "The currency code for the price. Use standard 3-letter currency codes.", "Examples: USD, EUR, GBP, RUB"),
             "title": (str, lambda: "Untitled", True, "A short, descriptive title for the service.", "Examples: 'Professional Photography', 'House Cleaning', 'Math Tutoring'"),
             "category": (str, lambda: "Uncategorized", True, "The category the service belongs to. Use general terms.", "Examples: 'Home Services', 'Education', 'Professional Services', 'Health & Wellness'"),
-            "description": (str, lambda: "No description provided", True, "A detailed description of the service, including what's offered, experience level, etc.", "Example: 'Experienced math tutor offering one-on-one lessons for high school and college students. Specializing in calculus and algebra. Flexible scheduling available.'")
+            "description": (str, lambda: "No description provided", True, "A detailed description of the service, including what's offered, experience level, etc. Use all provided information to describe the service.", "")
         })
         return structure
 
@@ -168,9 +168,9 @@ class LocalsEvent(BaseEntity):
         structure = super().get_structure()
         structure.update({
             "title": (str, lambda: "Untitled", True, "A short, descriptive title for the event.", "Examples: 'Community Cleanup Day', 'Local Art Exhibition', 'Neighborhood BBQ'"),
-            "date": (datetime, lambda: datetime.now(), True, "The date and time when the event will take place. Use ISO format.", "Examples: '2023-07-15T14:00:00', '2023-08-01T09:30:00'"),
+            "date": (datetime, lambda: datetime.now(), True, "The date and time when the event will take place (always in the future from the current date). Use ISO format.", "Format: 'YYYY-MM-DDThh:mm:ss'"),
             "category": (str, lambda: "Uncategorized", True, "The category the event belongs to.", "Examples: 'Community Service', 'Arts & Culture', 'Sports & Recreation', 'Education'"),
-            "description": (str, lambda: "No description provided", True, "A detailed description of the event, including what to expect, who should attend, etc.", "Example: 'Join us for our annual community cleanup day. We'll meet at the park entrance at 9 AM. Gloves and trash bags will be provided. Lunch will be served for all volunteers.'")
+            "description": (str, lambda: "No description provided", True, "A detailed description of the event, including what to expect, who should attend, etc. Use all provided information to describe the event.", "")
         })
         return structure
 
@@ -188,7 +188,7 @@ class LocalsNews(BaseEntity):
         structure.update({
             "title": (str, lambda: "Untitled", True, "A short, descriptive headline for the news item.", "Examples: 'New Community Center Opening Next Month', 'Local School Wins State Championship'"),
             "category": (str, lambda: "Uncategorized", True, "The category the news item belongs to.", "Examples: 'Local Government', 'Education', 'Business', 'Community'"),
-            "description": (str, lambda: "No description provided", True, "The main content of the news item, including key details and quotes if available.", "Example: 'The city council announced today that the new community center will open its doors on July 1st. The $5 million facility will feature a gym, swimming pool, and meeting rooms for local organizations.'")
+            "description": (str, lambda: "No description provided", True, "The main content of the news item, including key details and quotes if available. Use all provided information to describe the news item.", "")
         })
         return structure
 

@@ -33,11 +33,6 @@ def extract_entity_info_with_ai(text, existing_categories, community_name, entit
     # Identify fields to be extracted by AI
     ai_structure = {k: v for k, v in structure.items() if v[2]}
 
-    # Check if all fields have description and example
-    for key, value in ai_structure.items():
-        if len(value) < 5 or not value[3] or not value[4]:
-            raise ValueError(f"Field '{key}' is missing description or example")
-
     # Get the current date
     current_date = datetime.now().isoformat()
 
@@ -54,12 +49,12 @@ def extract_entity_info_with_ai(text, existing_categories, community_name, entit
     }}
 
     Important: For date fields, use the ISO format "YYYY-MM-DDTHH:MM:SS".
+    The current date is {current_date}. Dates in the past are not allowed.
     
     Categories to take into account: {existing_categories}. If any of the categories match the text exactly - use it. But if you're not certain or if it's only partially related - come up with a new category. 
     Example: Categories: ['Clothes'], and text about gopro with accessories like handle, batteries, etc - you should come up with a new category 'Electronics'.
     Example: Categories: ['Electronics'], and text about a new iPhone 15 - you should use existing category 'Electronics'.
 
-    The current date is {current_date}.
     Also, provide a confidence score (0-100) indicating how well the extracted information matches the given text. Lower the score if many fields are null.
 
     Text: {text}
