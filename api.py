@@ -45,6 +45,7 @@ def token_required(fail_if_not_ready=True):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             auth_header = request.headers.get('Authorization')
+            community_id_header = request.headers.get('X-Community-Id')
             bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
 
             if not auth_header or not auth_header.startswith('tma '):
@@ -62,8 +63,32 @@ def token_required(fail_if_not_ready=True):
             
                 if not is_valid:
                     return jsonify({"valid": False}), 400
+                
+                # Extract user information from parsed_data
+                user_info_str = parsed_data.get('user', '{}')
+                try:
+                    user_info = json.loads(user_info_str)
+                    request.user_info = user_info  # Store user info in request context
+                except json.JSONDecodeError:
+                    logger.error(f"Error decoding user info: {user_info_str}")
+                    return jsonify({"error": "Invalid user information"}), 400
 
-                community = service_manager.get_community_by_id(parsed_data.get('start_param', ''))
+                community_id = parsed_data.get('start_param', '')
+
+                if not community_id:
+                    if community_id_header:
+                        user = service_manager.get_user(user_info['id'])
+                        if user and community_id_header not in user['communities']:
+                            return jsonify({"error": "User is not part of this community"}), 404
+                        community_id = community_id_header
+                    elif fail_if_not_ready:
+                        return jsonify({"error": "Invalid request"}), 400
+                    else:
+                        request.community_is_not_specified = True
+                        return f(*args, **kwargs)
+                
+                community = service_manager.get_community_by_id(community_id)
+                request.community_is_not_specified = False
 
                 if not community:
                     return jsonify({"valid": False}), 404
@@ -79,14 +104,6 @@ def token_required(fail_if_not_ready=True):
 
                 request.parsed_data = parsed_data  # Store parsed data in request context
                 request.community = community  # Store community in request context
-                # Extract user information from parsed_data
-                user_info_str = parsed_data.get('user', '{}')
-                try:
-                    user_info = json.loads(user_info_str)
-                    request.user_info = user_info  # Store user info in request context
-                except json.JSONDecodeError:
-                    logger.error(f"Error decoding user info: {user_info_str}")
-                    return jsonify({"error": "Invalid user information"}), 400
 
                 admin_usernames = [admin['user']['username'] for admin in admins if 'username' in admin['user']]
                 
@@ -131,9 +148,26 @@ def validate_telegram_init_data():
     """
     Validate the InitData received from Telegram mini app.
     """
-    community = request.community
     user_info = request.user_info
+    user = service_manager.get_user(user_info['id'])
+    if request.community_is_not_specified:
+        community_ids = user['communities'] if user['communities'] else []
+        return jsonify({
+                "valid": True,
+                "community_is_not_specified": True,
+                "communities": [service_manager.get_community_by_id(id) for id in community_ids],
+                "user": {
+                    "first_name": user_info['first_name'],
+                    "last_name": user_info['last_name'],
+                    "username": user_info['username']
+                }
+            })
+    
+    community = request.community
     is_admin = request.is_admin
+    
+    if community['id'] not in user['communities']:
+        service_manager.add_user_to_community(user['id'], community['id'])
 
     return jsonify({
         "valid": True,

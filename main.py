@@ -2,7 +2,7 @@ import functions_framework
 from flask import Flask, request
 import logging
 from api import api_blueprint
-from bot import bot_blueprint
+from bot_endpoints import bot_blueprint
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +23,7 @@ def main(request):
         headers = {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, PUT, DELETE, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Community-Id',
             'Access-Control-Max-Age': '3600'
         }
         return ('', 204, headers)

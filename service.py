@@ -1,9 +1,10 @@
 import uuid
 from pymongo import MongoClient, ReturnDocument
 import os
-from bson import ObjectId
+from bson import ObjectId, Int64
 from datetime import datetime
 import json
+from typing import List
 
 class BaseEntity:
     def __init__(self, db, collection_name):
@@ -14,28 +15,29 @@ class BaseEntity:
         return {
             "id": (str, lambda: str(uuid.uuid4()), False, None, None),
             "title": (str, lambda: "Untitled", True, None, None),
-            "image": (str, lambda: None, False, None, None),
+            "images": (list, lambda: [], False, None, None),  # Changed from image to images
+            "mediaGroupId": (str, lambda: None, False, None, None),
             "author": (str, lambda: None, False, None, None),
-            "username": (str, lambda: None, False, None, None),  # Add username
+            "userId": (int, lambda: None, False, None, None),
             "category": (str, lambda: "Uncategorized", True, None, None),
             "description": (str, lambda: "No description provided", True, None, None),
             "publishedAt": (datetime, lambda: datetime.now(), False, None, None),
             "communityId": (str, lambda: None, False, None, None),
-            "messageId": (str, lambda: None, False, None, None)  # Add messageId
+            "messageId": (str, lambda: None, False, None, None)
         }
 
-    def create(self, id, title, image, author, username, publishedAt, category, description, communityId, messageId, **kwargs):
+    def create(self, id, title, images, author, userId, publishedAt, category, description, communityId, messageId, **kwargs):
         entity = {
             "id": id,
             "title": title,
-            "image": image,
+            "images": images,  # Changed from image to images
             "author": author,
-            "username": username,  # Add username
+            "userId": userId,
             "publishedAt": publishedAt,
             "category": category,
             "description": description,
             "communityId": communityId,
-            "messageId": messageId  # Add messageId
+            "messageId": messageId
         }
         entity.update(kwargs)
         self.collection.insert_one(entity)
@@ -51,25 +53,25 @@ class BaseEntity:
         categories = self.collection.distinct("category", {"communityId": communityId})
         return categories
 
-    def delete(self, id, communityId, username):
+    def delete(self, id, communityId, userId):
         deleted_entity = self.collection.find_one_and_delete(
-            {"id": id, "communityId": communityId, "username": username},
+            {"id": id, "communityId": communityId, "userId": userId},
             return_document=ReturnDocument.BEFORE
         )
         deleted_entity['_id'] = str(deleted_entity['_id'])
         return deleted_entity
     
-    def update(self, id, communityId, username, **kwargs):
+    def update(self, id, communityId, userId, **kwargs):
         # Filter out None values from kwargs
         update_fields = {k: v for k, v in kwargs.items() if v is not None}
         
         # If there are no non-None values, return existing entity
         if not update_fields:
-            updated_entity = self.collection.find_one({"id": id, "communityId": communityId, "username": username})
+            updated_entity = self.collection.find_one({"id": id, "communityId": communityId, "userId": userId})
         else:
             # Update the document
             updated_entity = self.collection.find_one_and_update(
-                {"id": id, "communityId": communityId, "username": username},
+                {"id": id, "communityId": communityId, "userId": userId},
                 {"$set": update_fields},
                 return_document=ReturnDocument.AFTER
             )
@@ -196,6 +198,42 @@ class LocalsNews(BaseEntity):
     def get_description(cls):
         return "a news item relevant to the local community"
 
+class LocalsUser:
+    def __init__(self, db):
+        self.collection = db['users']
+
+    def create(self, id: int, communities: List[str] = None):
+        user = {
+            "_id": Int64(id),
+            "communities": communities or []
+        }
+        self.collection.insert_one(user)
+        return self._format_user(user)
+
+    def get_by_id(self, user_id: int):
+        user = self.collection.find_one({"_id": Int64(user_id)})
+        return self._format_user(user) if user else None
+
+    def add_community(self, user_id: int, community_id: str):
+        result = self.collection.update_one(
+            {"_id": Int64(user_id)},
+            {"$addToSet": {"communities": community_id}},
+            upsert=True
+        )
+        return result.modified_count > 0 or result.upserted_id is not None
+
+    def remove_community(self, user_id: int, community_id: str):
+        result = self.collection.update_one(
+            {"_id": Int64(user_id)},
+            {"$pull": {"communities": community_id}}
+        )
+        return result.modified_count > 0
+
+    def _format_user(self, user):
+        if user:
+            user['id'] = user.pop('_id')
+        return user
+
 class ServiceManager:
     def __init__(self):
         db_uri = os.environ.get('MONGODB_URI')
@@ -207,6 +245,7 @@ class ServiceManager:
         self.service = LocalsService(db)
         self.event = LocalsEvent(db)
         self.news = LocalsNews(db)
+        self.user = LocalsUser(db)  # Add this line
 
     def get_community_by_id(self, communityId):
         return self.community.get_by_id(communityId)
@@ -220,8 +259,8 @@ class ServiceManager:
     def update_community(self, communityId, update_data):
         return self.community.update(communityId, update_data)
 
-    def create_item(self, id, title, price, currency, image, author, username, publishedAt, category, description, communityId, messageId):
-        return self.item.create(id, title, image, author, username, publishedAt, category, description, communityId, messageId, price=price, currency=currency)
+    def create_item(self, id, title, price, currency, images, author, userId, publishedAt, category, description, communityId, messageId, mediaGroupId):
+        return self.item.create(id, title, images, author, userId, publishedAt, category, description, communityId, messageId, price=price, currency=currency, mediaGroupId=mediaGroupId)
 
     def search_items(self, communityId):
         return self.item.search(communityId)
@@ -229,14 +268,14 @@ class ServiceManager:
     def get_item_categories_by_community_id(self, communityId):
         return self.item.get_categories_by_community_id(communityId)
     
-    def update_item(self, id, communityId, username, title, description, price, currency, category):
-        return self.item.update(id, communityId, username, title=title, description=description, price=price, currency=currency, category=category)
+    def update_item(self, id, communityId, userId, title, description, price, currency, category):
+        return self.item.update(id, communityId, userId, title=title, description=description, price=price, currency=currency, category=category)
 
-    def delete_item(self, id, communityId, username):
-        return self.item.delete(id, communityId, username)
+    def delete_item(self, id, communityId, userId):
+        return self.item.delete(id, communityId, userId)
 
-    def create_service(self, id, title, price, currency, image, author, username, publishedAt, category, description, communityId, messageId):
-        return self.service.create(id, title, image, author, username, publishedAt, category, description, communityId, messageId, price=price, currency=currency)
+    def create_service(self, id, title, price, currency, images, author, userId, publishedAt, category, description, communityId, messageId, mediaGroupId):
+        return self.service.create(id, title, images, author, userId, publishedAt, category, description, communityId, messageId, price=price, currency=currency, mediaGroupId=mediaGroupId)
 
     def search_services(self, communityId):
         return self.service.search(communityId)
@@ -244,14 +283,14 @@ class ServiceManager:
     def get_service_categories_by_community_id(self, communityId):
         return self.service.get_categories_by_community_id(communityId)
     
-    def update_service(self, id, communityId, username, title, description, price, currency, category):
-        return self.service.update(id, communityId, username, title=title, description=description, price=price, currency=currency, category=category)
+    def update_service(self, id, communityId, userId, title, description, price, currency, category):
+        return self.service.update(id, communityId, userId, title=title, description=description, price=price, currency=currency, category=category)
 
-    def delete_service(self, id, communityId, username):
-        return self.service.delete(id, communityId, username)
+    def delete_service(self, id, communityId, userId):
+        return self.service.delete(id, communityId, userId)
 
-    def create_event(self, id, title, date, image, author, username, publishedAt, category, description, communityId, messageId):
-        return self.event.create(id, title, image, author, username, publishedAt, category, description, communityId, messageId, date=date)
+    def create_event(self, id, title, date, images, author, userId, publishedAt, category, description, communityId, messageId, mediaGroupId):
+        return self.event.create(id, title, images, author, userId, publishedAt, category, description, communityId, messageId, date=date, mediaGroupId=mediaGroupId)
 
     def search_events(self, communityId):
         return self.event.search(communityId)
@@ -259,14 +298,14 @@ class ServiceManager:
     def get_event_categories_by_community_id(self, communityId):
         return self.event.get_categories_by_community_id(communityId)
     
-    def update_event(self, id, communityId, username, title, description, date, category):
-        return self.event.update(id, communityId, username, title=title, description=description, date=date, category=category)
+    def update_event(self, id, communityId, userId, title, description, date, category):
+        return self.event.update(id, communityId, userId, title=title, description=description, date=date, category=category)
     
-    def delete_event(self, id, communityId, username):
-        return self.event.delete(id, communityId, username)
+    def delete_event(self, id, communityId, userId):
+        return self.event.delete(id, communityId, userId)
 
-    def create_news(self, id, title, image, author, username, publishedAt, category, description, communityId, messageId):
-        return self.news.create(id, title, image, author, username, publishedAt, category, description, communityId, messageId)
+    def create_news(self, id, title, images, author, userId, publishedAt, category, description, communityId, messageId, mediaGroupId):
+        return self.news.create(id, title, images, author, userId, publishedAt, category, description, communityId, messageId, mediaGroupId=mediaGroupId)
 
     def search_news(self, communityId):
         return self.news.search(communityId)
@@ -274,8 +313,28 @@ class ServiceManager:
     def get_news_categories_by_community_id(self, communityId):
         return self.news.get_categories_by_community_id(communityId)
     
-    def update_news(self, id, communityId, username, title, description, category):
-        return self.news.update(id, communityId, username, title=title, description=description, category=category)
+    def update_news(self, id, communityId, userId, title, description, category):
+        return self.news.update(id, communityId, userId, title=title, description=description, category=category)
 
-    def delete_news(self, id, communityId, username):
-        return self.news.delete(id, communityId, username)
+    def delete_news(self, id, communityId, userId):
+        return self.news.delete(id, communityId, userId)
+
+    def create_user(self, user_id: int, communities: List[str]):
+        return self.user.create(user_id, communities)
+
+    def get_user(self, user_id: int):
+        return self.user.get_by_id(user_id)
+
+    def add_user_to_community(self, user_id: int, community_id: str):
+        return self.user.add_community(user_id, community_id)
+
+    def remove_user_from_community(self, user_id: int, community_id: str):
+        return self.user.remove_community(user_id, community_id)
+
+    def add_user_to_community_if_not_exists(self, user_id, community_id):
+        user = self.get_user(user_id)
+        if not user:
+            self.create_user(user_id, [community_id])
+        elif community_id not in user['communities']:
+            self.add_user_to_community(user_id, community_id)
+        return user
