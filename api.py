@@ -228,6 +228,7 @@ def search_items():
 
     try:
         items = service_manager.search_items(request.community['id'])
+        populate_entities_with_images(items)
         return jsonify({"items": items})
     except Exception as e:
         logger.error(f"Error searching items: {str(e)}", exc_info=True)
@@ -242,6 +243,7 @@ def search_services():
 
     try:
         services = service_manager.search_services(request.community['id'])
+        populate_entities_with_images(services)
         return jsonify({"services": services})
     except Exception as e:
         logger.error(f"Error searching services: {str(e)}", exc_info=True)
@@ -256,6 +258,7 @@ def search_events():
 
     try:
         events = service_manager.search_events(request.community['id'])
+        populate_entities_with_images(events)
         return jsonify({"events": events})
     except Exception as e:
         logger.error(f"Error searching events: {str(e)}", exc_info=True)
@@ -270,6 +273,7 @@ def search_news():
 
     try:
         news = service_manager.search_news(request.community['id'])
+        populate_entities_with_images(news)
         return jsonify({"news": news})
     except Exception as e:
         logger.error(f"Error searching news: {str(e)}", exc_info=True)
@@ -444,3 +448,13 @@ def update_news(news_id):
     except Exception as e:
         logger.error(f"Error updating news item: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+def populate_entities_with_images(entities):
+    media_group_ids = [entity['mediaGroupId'] for entity in entities if entity['mediaGroupId']]
+    media_groups = service_manager.get_media_groups(media_group_ids)
+    media_groups_dict = {media_group['id']: media_group['images'] for media_group in media_groups}
+
+    for entity in entities:
+        entity['images'] = []
+        if entity['mediaGroupId'] in media_groups_dict:
+            entity['images'] = media_groups_dict[entity['mediaGroupId']]

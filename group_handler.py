@@ -30,6 +30,27 @@ def handle_group_message(message):
             if not mime_type.startswith('image/'):
                 return  # Ignore non-image documents
         handle_hashtag(message, is_caption=True)
+    elif 'media_group_id' in message:
+        handle_media_group(message)
+
+def handle_media_group(message):
+    """
+    Handle a media group message.
+    """
+    chat_id = message['chat']['id']
+    
+    # Check if the community exists, if not, create it and start setup
+    community = service_manager.get_community_by_chat_id(chat_id)
+    if not community:
+        return
+    
+    media_group_id = message['media_group_id']
+    if not service_manager.get_media_group(media_group_id):
+        return
+    
+    image_url = process_image_or_document(message, community['id'])
+    service_manager.add_image_to_media_group(media_group_id, image_url)
+    logger.info(f"Added image to media group: {media_group_id}")
 
 def handle_command(message, command):
     """
@@ -133,9 +154,6 @@ def handle_hashtag(message, is_caption=False):
                 extracted_info[key] = f"{message['from']['first_name']} {message['from'].get('last_name', '')}".strip()
             elif key == 'userId':
                 extracted_info[key] = user_id
-            elif key == 'images':
-                image_url = process_image_or_document(message, community['id'])
-                extracted_info[key] = [image_url] if image_url else default_value()
             elif key == 'communityId':
                 extracted_info[key] = community['id']
             elif key == 'messageId':
@@ -144,6 +162,11 @@ def handle_hashtag(message, is_caption=False):
                 extracted_info[key] = message.get('media_group_id') if message.get('media_group_id') else default_value()
             else:
                 extracted_info[key] = default_value()
+
+    media_group_id = extracted_info.get('mediaGroupId')
+    image_url = process_image_or_document(message, community['id'])
+    if image_url:
+        service_manager.create_media_group(media_group_id, [image_url])
 
     # Process the extracted_info
     try:
