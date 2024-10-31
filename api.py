@@ -7,6 +7,7 @@ from urllib.parse import parse_qsl
 import logging
 from functools import wraps
 from config import service_manager, storage_client  # Import storage_client from config
+from common_utils import get_chat_administrators, get_chat_member
 import json
 import requests
 
@@ -118,30 +119,6 @@ def token_required(fail_if_not_ready=True):
         return decorated_function
     return decorator
 
-def delete_image_if_exists(entity):
-    if entity and entity.get('image'):
-        try:
-            image_gcs_path = entity['image'].replace('https://storage.googleapis.com/', '')
-            bucket_name, blob_name = image_gcs_path.split('/', 1)
-            bucket = storage_client.bucket(bucket_name)
-            blob = bucket.blob(blob_name)
-            blob.delete()
-            logger.info(f"Deleted image from GCS: {image_gcs_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error deleting image from GCS: {str(e)}", exc_info=True)
-    return False
-
-def get_chat_administrators(chat_id, bot_token):
-    url = f"https://api.telegram.org/bot{bot_token}/getChatAdministrators"
-    params = {"chat_id": chat_id}
-    response = requests.get(url, params=params)
-    if response.status_code == 200:
-        return response.json()['result']
-    else:
-        logger.error(f"Failed to get chat administrators: {response.text}")
-        return None
-
 @api_blueprint.route("/api/init", methods=['POST', 'OPTIONS'])
 @token_required(fail_if_not_ready=False)
 def validate_telegram_init_data():
@@ -157,6 +134,7 @@ def validate_telegram_init_data():
                 "community_is_not_specified": True,
                 "communities": [service_manager.get_community_by_id(id) for id in community_ids],
                 "user": {
+                    "id": user_info['id'],
                     "first_name": user_info['first_name'],
                     "last_name": user_info['last_name'],
                     "username": user_info['username']
@@ -175,6 +153,7 @@ def validate_telegram_init_data():
         "admin": is_admin,
         "community": community,
         "user": {
+            "id": user_info['id'],
             "first_name": user_info['first_name'],
             "last_name": user_info['last_name'],
             "username": user_info['username']
@@ -290,10 +269,10 @@ def delete_item(item_id):
     is_admin = request.is_admin
 
     try:
-        deleted_item = service_manager.delete_item(item_id, community_id, user_info['username'])
+        deleted_item = service_manager.delete_item(item_id, community_id, user_info['id'])
         if deleted_item:
-            image_deleted = delete_image_if_exists(deleted_item)
-            return jsonify({"message": "Item deleted successfully", "image_deleted": image_deleted}), 200
+            images_deleted = delete_images_if_exists(deleted_item)
+            return jsonify({"message": "Item deleted successfully", "images_deleted": images_deleted}), 200
         else:
             return jsonify({"error": "Item not found or you don't have permission to delete it"}), 404
     except Exception as e:
@@ -311,10 +290,10 @@ def delete_service(service_id):
     is_admin = request.is_admin
 
     try:
-        deleted_service = service_manager.delete_service(service_id, community_id, user_info['username'])
+        deleted_service = service_manager.delete_service(service_id, community_id, user_info['id'])
         if deleted_service:
-            image_deleted = delete_image_if_exists(deleted_service)
-            return jsonify({"message": "Service deleted successfully", "image_deleted": image_deleted}), 200
+            images_deleted = delete_images_if_exists(deleted_service)
+            return jsonify({"message": "Service deleted successfully", "images_deleted": images_deleted}), 200
         else:
             return jsonify({"error": "Service not found or you don't have permission to delete it"}), 404
     except Exception as e:
@@ -332,10 +311,10 @@ def delete_event(event_id):
     is_admin = request.is_admin
 
     try:
-        deleted_event = service_manager.delete_event(event_id, community_id, user_info['username'])
+        deleted_event = service_manager.delete_event(event_id, community_id, user_info['id'])
         if deleted_event:
-            image_deleted = delete_image_if_exists(deleted_event)
-            return jsonify({"message": "Event deleted successfully", "image_deleted": image_deleted}), 200
+            images_deleted = delete_images_if_exists(deleted_event)
+            return jsonify({"message": "Event deleted successfully", "images_deleted": images_deleted}), 200
         else:
             return jsonify({"error": "Event not found or you don't have permission to delete it"}), 404
     except Exception as e:
@@ -353,10 +332,10 @@ def delete_news(news_id):
     is_admin = request.is_admin
 
     try:
-        deleted_news = service_manager.delete_news(news_id, community_id, user_info['username'])
+        deleted_news = service_manager.delete_news(news_id, community_id, user_info['id'])
         if deleted_news:
-            image_deleted = delete_image_if_exists(deleted_news)
-            return jsonify({"message": "News item deleted successfully", "image_deleted": image_deleted}), 200
+            images_deleted = delete_images_if_exists(deleted_news)
+            return jsonify({"message": "News item deleted successfully", "images_deleted": images_deleted}), 200
         else:
             return jsonify({"error": "News item not found or you don't have permission to delete it"}), 404
     except Exception as e:
@@ -379,7 +358,7 @@ def update_item(item_id):
     new_category = request.json.get('category')
 
     try:
-        updated_item = service_manager.update_item(item_id, community_id, user_info['username'], new_title, new_description, new_price, new_currency, new_category)
+        updated_item = service_manager.update_item(item_id, community_id, user_info['id'], new_title, new_description, new_price, new_currency, new_category)
         return jsonify({"message": "Item updated successfully", "item": updated_item}), 200
     except Exception as e:
         logger.error(f"Error updating item: {str(e)}", exc_info=True)
@@ -402,7 +381,7 @@ def update_service(service_id):
     new_category = request.json.get('category')
 
     try:
-        updated_service = service_manager.update_service(service_id, community_id, user_info['username'], new_title, new_description, new_price, new_currency, new_category)
+        updated_service = service_manager.update_service(service_id, community_id, user_info['id'], new_title, new_description, new_price, new_currency, new_category)
         return jsonify({"message": "Service updated successfully", "service": updated_service}), 200
     except Exception as e:
         logger.error(f"Error updating service: {str(e)}", exc_info=True)
@@ -423,7 +402,7 @@ def update_event(event_id):
     new_category = request.json.get('category')
 
     try:
-        updated_event = service_manager.update_event(event_id, community_id, user_info['username'], new_title, new_description, new_date, new_category)
+        updated_event = service_manager.update_event(event_id, community_id, user_info['id'], new_title, new_description, new_date, new_category)
         return jsonify({"message": "Event updated successfully", "event": updated_event}), 200
     except Exception as e:
         logger.error(f"Error updating event: {str(e)}", exc_info=True)
@@ -443,11 +422,39 @@ def update_news(news_id):
     new_category = request.json.get('category')
 
     try:
-        updated_news = service_manager.update_news(news_id, community_id, user_info['username'], new_title, new_description, new_category)
+        updated_news = service_manager.update_news(news_id, community_id, user_info['id'], new_title, new_description, new_category)
         return jsonify({"message": "News item updated successfully", "news": updated_news}), 200
     except Exception as e:
         logger.error(f"Error updating news item: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+@api_blueprint.route("/api/users/<user_id>/_resolve-link", methods=['GET', 'OPTIONS'])
+@token_required()
+def resolve_user_link(user_id):
+    """
+    Resolve a user link.
+    """
+    chat_member = get_chat_member(request.community['chatId'], user_id)
+    if chat_member:
+        return jsonify({"link": f"https://t.me/{chat_member['user']['username']}"}), 200
+    else:
+        return jsonify({"error": "User not found"}), 404
+
+def delete_images_if_exists(entity):
+    images_deleted = 0
+    if entity and entity.get('images'):
+        for image in entity['images']:
+            try:
+                image_gcs_path = image.replace('https://storage.googleapis.com/', '')
+                bucket_name, blob_name = image_gcs_path.split('/', 1)
+                bucket = storage_client.bucket(bucket_name)
+                blob = bucket.blob(blob_name)
+                blob.delete()
+                logger.info(f"Deleted image from GCS: {image_gcs_path}")
+                images_deleted += 1
+            except Exception as e:
+                logger.error(f"Error deleting image from GCS: {str(e)}", exc_info=True)
+    return images_deleted
 
 def populate_entities_with_images(entities):
     media_group_ids = [entity['mediaGroupId'] for entity in entities if entity['mediaGroupId']]

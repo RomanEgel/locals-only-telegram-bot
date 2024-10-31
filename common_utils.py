@@ -198,3 +198,23 @@ def extract_entity_type_from_hashtag(text, entity_settings):
                 if value.lower() == hashtag:
                     return key.replace('Hashtag', ''), hashtag
     return None, None
+
+def get_chat_administrators(chat_id):
+    url = f"{TELEGRAM_API_URL}/getChatAdministrators"
+    params = {"chat_id": chat_id}
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        return response.json()['result']
+    else:
+        logger.error(f"Failed to get chat administrators: {response.text}")
+        return None
+
+def get_chat_member(chat_id, user_id):
+    url = f"{TELEGRAM_API_URL}/getChatMember"
+    params = {"chat_id": chat_id, "user_id": user_id}
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        return response.json()['result']
+    else:
+        logger.error(f"Failed to get chat member: {response.text}")
+        return None
