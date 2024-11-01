@@ -1,8 +1,9 @@
 import functions_framework
-from flask import Flask, request
+from flask import Flask
 import logging
 from api import api_blueprint
 from bot_endpoints import bot_blueprint
+from common_utils import set_bot_commands
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -11,6 +12,10 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.register_blueprint(api_blueprint)
 app.register_blueprint(bot_blueprint)
+
+# Initialize bot commands
+logger.info("Performing startup action...")
+set_bot_commands()
 
 @functions_framework.http
 def main(request):

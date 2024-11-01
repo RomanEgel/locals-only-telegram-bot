@@ -98,7 +98,7 @@ def token_required(fail_if_not_ready=True):
                     return jsonify({"error": "Community is not ready"}), 403
 
                 # Get chat administrators
-                admins = get_chat_administrators(community['chatId'], bot_token)
+                admins = get_chat_administrators(community['chatId'])
                 
                 if admins is None:
                     return jsonify({"error": "Failed to get chat administrators"}), 500

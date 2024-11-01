@@ -189,13 +189,21 @@ class LocalsUser:
     def __init__(self, db):
         self.collection = db['users']
 
-    def create(self, id: int, communities: List[str] = None):
+    def create(self, id: int, communities: List[str] = None, chatId: int = None):
         user = {
             "_id": Int64(id),
-            "communities": communities or []
+            "communities": communities or [],
+            "chatId": chatId,
+            "notificationsEnabled": False
         }
         self.collection.insert_one(user)
         return format_entity(user)
+    
+    def set_chat_id(self, id: int, chatId: int):
+        self.collection.update_one({"_id": Int64(id)}, {"$set": {"chatId": chatId}})
+
+    def set_notifications_enabled(self, id: int, notificationsEnabled: bool):
+        self.collection.update_one({"_id": Int64(id)}, {"$set": {"notificationsEnabled": notificationsEnabled}})
 
     def get_by_id(self, user_id: int):
         user = self.collection.find_one({"_id": Int64(user_id)})
@@ -321,8 +329,8 @@ class ServiceManager:
     def delete_news(self, id, communityId, userId):
         return self.news.delete(id, communityId, userId)
 
-    def create_user(self, user_id: int, communities: List[str]):
-        return self.user.create(user_id, communities)
+    def create_user(self, user_id: int, communities: List[str], chatId: int = None):
+        return self.user.create(user_id, communities, chatId)
 
     def get_user(self, user_id: int):
         return self.user.get_by_id(user_id)
@@ -340,6 +348,12 @@ class ServiceManager:
         elif community_id not in user['communities']:
             self.add_user_to_community(user_id, community_id)
         return user
+
+    def set_user_notifications_enabled(self, id: int, notificationsEnabled: bool):
+        return self.user.set_notifications_enabled(id, notificationsEnabled)
+    
+    def set_user_chat_id(self, id: int, chatId: int):
+        return self.user.set_chat_id(id, chatId)
 
     def create_media_group(self, id: str, images: List[str]):
         return self.media_group.create(id, images)

@@ -3,7 +3,8 @@ import logging
 import requests
 import re
 from config import service_manager, storage_client
-from service import BaseEntity, LocalsItem, LocalsService, LocalsEvent, LocalsNews
+from service import LocalsItem, LocalsService, LocalsEvent, LocalsNews
+from ai_extractor import extract_entity_info_with_ai
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +24,19 @@ def send_message(chat_id, text_key, language='en', **kwargs):
             'welcome': "Welcome to the bot!",
             'help': "Here are the available commands: /start, /help, /app",
             'private_welcome': "Welcome to the private chat!",
-            'private_help': "Here are the available commands for private chat: /start, /help",
+            'private_help': "Here are the available commands: /start, /help, /join, /create, /list",
             'private_chat_response': "This is a private chat. How can I assist you?",
+            'notifications_enabled': "Notifications enabled!",
+            'no_communities': "You are not a member of any communities.",
         },
         'ru': {
             'welcome': "Добро пожаловать в бота!",
             'help': "Вот доступные команды: /start, /help, /app",
             'private_welcome': "Добро пожаловать в приватный чат!",
-            'private_help': "Вот доступные команды для приватного чата: /start, /help",
+            'private_help': "Вот доступные команды: /start, /help, /join, /create, /list",
             'private_chat_response': "Это приватный чат. Чем я могу вам помочь?",
+            'no_communities': "Вы не являетесь участником ни одного сообщества.",
+            'notifications_enabled': "Уведомления активированы!",
         }
     }
 
@@ -44,6 +49,13 @@ def send_message(chat_id, text_key, language='en', **kwargs):
     }
     response = requests.post(url, json=payload)
     return response.json()
+
+def send_app_list_keyboard(chat_id, communities, language):
+    keyboard = []
+    for community in communities:
+        keyboard.append([{'text': community['name'], 'url': WEB_APP_LINK + f"?startapp={community['id']}"}])
+    send_message_with_keyboard(chat_id, 'communities_app_list', reply_markup={'inline_keyboard': keyboard}, language=language)
+    
 
 def send_app_keyboard(chat_id, community):
     translations = {
@@ -90,6 +102,8 @@ def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='e
             'successfully_joined': "You have successfully joined the community!",
             'community_already_exists': "Community already exists for the shared chat.",
             'community_created': "Community created successfully!",
+            'bot_has_no_administrator_rights': "Bot has no administrator rights. Please add the bot to the chat as an administrator and try again.",
+            'communities_app_list': "Communities List",
         },
         'ru': {
             'please_select_chat': "Пожалуйста, выберите чат:",
@@ -97,6 +111,8 @@ def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='e
             'successfully_joined': "Вы успешно присоединились к сообществу!",
             'community_already_exists': "Сообщество уже существует для указанного чата.",
             'community_created': "Сообщество успешно создано!",
+            'bot_has_no_administrator_rights': "Бот не имеет прав администратора. Пожалуйста, добавьте бота в чат как администратора и попробуйте снова.",
+            'communities_app_list': "Список Сообществ",
         }
     }
 
@@ -218,3 +234,125 @@ def get_chat_member(chat_id, user_id):
     else:
         logger.error(f"Failed to get chat member: {response.text}")
         return None
+
+
+def handle_entity_creation_from_hashtag(message, community, is_caption, is_private):
+    text = message['caption'] if is_caption else message['text']
+    user_id = message['from']['id']
+
+    if community.get('status', 'SETUP') != "READY":
+        logger.info(f"Community {community['id']} is not ready")
+        return
+    
+    service_manager.add_user_to_community_if_not_exists(user_id, community['id'])
+
+    entity_settings = community.get('entitySettings', {
+        'eventHashtag': '#event',
+        'itemHashtag': '#item',
+        'serviceHashtag': '#service',
+        'newsHashtag': '#news'
+    })
+
+    entity_type, hashtag = extract_entity_type_from_hashtag(text, entity_settings)
+    if not entity_type:
+        logger.info(f"No supported hashtag found in message: {text}")
+        return
+
+    language = community.get('language', 'en')
+    
+    entity_class = get_entity_class(entity_type)
+    if not entity_class:
+        logger.info(f"Unsupported entity type: {entity_type}")
+        return
+
+    text_without_hashtag = text.replace(f'#{hashtag}', '').strip()
+
+    if entity_type == 'event':
+        existing_categories = service_manager.get_event_categories_by_community_id(community['id'])
+    elif entity_type == 'news':
+        existing_categories = service_manager.get_news_categories_by_community_id(community['id'])
+    elif entity_type == 'item':
+        existing_categories = service_manager.get_item_categories_by_community_id(community['id'])
+    elif entity_type == 'service':
+        existing_categories = service_manager.get_service_categories_by_community_id(community['id'])
+
+    extracted_info = extract_entity_info_with_ai(text_without_hashtag, existing_categories, community['name'], entity_class, language)
+    
+    if extracted_info is None:
+        logger.info(f"Failed to extract {entity_type} information")
+        return
+
+    # Populate missing fields with information from the Telegram message
+    structure = entity_class.get_structure()
+    for key, (value_type, default_value, _, _, _) in structure.items():
+        if key not in extracted_info:
+            if key == 'author':
+                extracted_info[key] = f"{message['from']['first_name']} {message['from'].get('last_name', '')}".strip()
+            elif key == 'userId':
+                extracted_info[key] = user_id
+            elif key == 'communityId':
+                extracted_info[key] = community['id']
+            elif key == 'messageId':
+                extracted_info[key] = message['message_id'] if not is_private else None
+            elif key == 'mediaGroupId':
+                extracted_info[key] = message.get('media_group_id') if message.get('media_group_id') else default_value()
+            else:
+                extracted_info[key] = default_value()
+
+    media_group_id = extracted_info.get('mediaGroupId')
+    image_url = process_image_or_document(message, community['id'])
+    if image_url:
+        service_manager.create_media_group(media_group_id, [image_url])
+
+    # Process the extracted_info
+    try:
+        if entity_type == 'event':
+            service_manager.create_event(**extracted_info)
+        elif entity_type == 'news':
+            service_manager.create_news(**extracted_info)
+        elif entity_type == 'item':
+            service_manager.create_item(**extracted_info)
+        elif entity_type == 'service':
+            service_manager.create_service(**extracted_info)
+        
+        logger.info(f"Processed {entity_type} for community: {community['id']}")
+        set_message_reaction(message['chat']['id'], message['message_id'], "⚡")
+    except Exception as e:
+        logger.error(f"Error processing {entity_type}: {str(e)}", exc_info=True)
+
+def set_bot_commands():
+    """
+    Set bot commands for different languages
+    """
+    base_url = f"{TELEGRAM_API_URL}/setMyCommands"
+    
+    commands = {
+        'en': [
+            {'command': 'join', 'description': 'Join a community'},
+            {'command': 'create', 'description': 'Create a new community'},
+            {'command': 'list', 'description': 'List communities that you are a member of'},
+            # Add more commands as needed
+        ],
+        'ru': [
+            {'command': 'join', 'description': 'Присоединиться к сообществу'},
+            {'command': 'create', 'description': 'Создать новое сообщество'},
+            {'command': 'list', 'description': 'Список сообществ, в которых вы состоите'},
+            # Add more commands as needed
+        ],
+        # Add more languages as needed
+    }
+    
+    for language_code, command_list in commands.items():
+        data = {
+            'commands': command_list,
+            'language_code': language_code
+        }
+        
+        try:
+            response = requests.post(base_url, json=data)
+            if response.status_code == 200:
+                logger.info(f"Successfully set commands for language: {language_code}")
+            else:
+                logger.error(f"Failed to set commands for language {language_code}. Response: {response.text}")
+        except Exception as e:
+            logger.error(f"Error setting commands for language {language_code}: {str(e)}")

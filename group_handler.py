@@ -1,10 +1,9 @@
 import logging
 from common_utils import (
-    WEB_APP_LINK, send_message, send_app_keyboard, get_entity_class,
-    process_image_or_document, set_message_reaction, extract_entity_type_from_hashtag
+    send_message, send_app_keyboard,
+    process_image_or_document, handle_entity_creation_from_hashtag
 )
 from config import service_manager
-from ai_extractor import extract_entity_info_with_ai
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +90,6 @@ def handle_hashtag(message, is_caption=False):
     Handle a message with a hashtag.
     """
     chat_id = message['chat']['id']
-    message_id = message['message_id']
-    text = message['caption'] if is_caption else message['text']
-    user_id = message['from']['id']  # Get user ID
 
     if message['from']['username'] == 'GroupAnonymousBot':
         logger.info(f"Message from anonymous admin, skipping.")
@@ -104,82 +100,4 @@ def handle_hashtag(message, is_caption=False):
         logger.info(f"Community not found for chat_id: {chat_id}")
         return
 
-    if community.get('status', 'SETUP') != "READY":
-        logger.info(f"Community {community['id']} is not ready")
-        return
-    
-    service_manager.add_user_to_community_if_not_exists(user_id, community['id'])
-
-    entity_settings = community.get('entitySettings', {
-        'eventHashtag': '#event',
-        'itemHashtag': '#item',
-        'serviceHashtag': '#service',
-        'newsHashtag': '#news'
-    })
-
-    entity_type, hashtag = extract_entity_type_from_hashtag(text, entity_settings)
-    if not entity_type:
-        logger.info(f"No supported hashtag found in message: {text}")
-        return
-
-    language = community.get('language', 'en')
-    
-    entity_class = get_entity_class(entity_type)
-    if not entity_class:
-        logger.info(f"Unsupported entity type: {entity_type}")
-        return
-
-    text_without_hashtag = text.replace(f'#{hashtag}', '').strip()
-
-    if entity_type == 'event':
-        existing_categories = service_manager.get_event_categories_by_community_id(community['id'])
-    elif entity_type == 'news':
-        existing_categories = service_manager.get_news_categories_by_community_id(community['id'])
-    elif entity_type == 'item':
-        existing_categories = service_manager.get_item_categories_by_community_id(community['id'])
-    elif entity_type == 'service':
-        existing_categories = service_manager.get_service_categories_by_community_id(community['id'])
-
-    extracted_info = extract_entity_info_with_ai(text_without_hashtag, existing_categories, community['name'], entity_class, language)
-    
-    if extracted_info is None:
-        logger.info(f"Failed to extract {entity_type} information")
-        return
-
-    # Populate missing fields with information from the Telegram message
-    structure = entity_class.get_structure()
-    for key, (value_type, default_value, _, _, _) in structure.items():
-        if key not in extracted_info:
-            if key == 'author':
-                extracted_info[key] = f"{message['from']['first_name']} {message['from'].get('last_name', '')}".strip()
-            elif key == 'userId':
-                extracted_info[key] = user_id
-            elif key == 'communityId':
-                extracted_info[key] = community['id']
-            elif key == 'messageId':
-                extracted_info[key] = message['message_id']
-            elif key == 'mediaGroupId':
-                extracted_info[key] = message.get('media_group_id') if message.get('media_group_id') else default_value()
-            else:
-                extracted_info[key] = default_value()
-
-    media_group_id = extracted_info.get('mediaGroupId')
-    image_url = process_image_or_document(message, community['id'])
-    if image_url:
-        service_manager.create_media_group(media_group_id, [image_url])
-
-    # Process the extracted_info
-    try:
-        if entity_type == 'event':
-            service_manager.create_event(**extracted_info)
-        elif entity_type == 'news':
-            service_manager.create_news(**extracted_info)
-        elif entity_type == 'item':
-            service_manager.create_item(**extracted_info)
-        elif entity_type == 'service':
-            service_manager.create_service(**extracted_info)
-        
-        logger.info(f"Processed {entity_type} for chat_id: {chat_id}")
-        set_message_reaction(chat_id, message_id, "⚡")
-    except Exception as e:
-        logger.error(f"Error processing {entity_type}: {str(e)}", exc_info=True)
+    handle_entity_creation_from_hashtag(message, community, is_caption, is_private=False)

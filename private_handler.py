@@ -1,5 +1,5 @@
 import logging
-from common_utils import send_app_keyboard, send_message, send_message_with_keyboard  # Updated import
+from common_utils import send_app_keyboard, send_message, send_message_with_keyboard, send_app_list_keyboard, get_chat_administrators  # Updated import
 from config import service_manager
 
 logger = logging.getLogger(__name__)
@@ -22,23 +22,18 @@ def handle_private_message(message):
     # Get or create LocalsUser
     user = service_manager.get_user(user_id)
     if not user:
-        user = service_manager.create_user(user_id, [])
+        user = service_manager.create_user(user_id, [], chat_id)
         logger.info(f"Created new user with id: {user_id}")
     else:
         logger.info(f"Found existing user with id: {user_id}")
+        if not user['chatId']:
+            service_manager.set_user_chat_id(user_id, chat_id)
+            logger.info(f"Updated chat_id for user with id: {user_id}")
 
     if text.startswith('/'):
         handle_private_command(message, text, user)
     elif 'chat_shared' in message:
         handle_chat_shared(message, user)
-    elif '#' in text:
-        handle_private_hashtag(message, user)
-    elif ('photo' in message or 'document' in message) and 'caption' in message and '#' in message['caption']:
-        if 'document' in message:
-            mime_type = message['document'].get('mime_type', '')
-            if not mime_type.startswith('image/'):
-                return  # Ignore non-image documents
-        handle_private_hashtag(message, user, is_caption=True)
 
 def handle_chat_shared(message, user):
     """
@@ -64,6 +59,11 @@ def handle_chat_shared(message, user):
         send_message_with_keyboard(chat_id, 'successfully_joined', reply_markup={'remove_keyboard': True})
         send_app_keyboard(chat_id, community)
     elif request_id == 2:
+        admins = get_chat_administrators(community_chat_id)
+        if admins is None:
+            send_message_with_keyboard(chat_id, 'bot_has_no_administrator_rights', reply_markup={'remove_keyboard': True})
+            return
+
         if community:
             send_message_with_keyboard(chat_id, 'community_already_exists', reply_markup={'remove_keyboard': True})
             send_app_keyboard(chat_id, community)
@@ -73,24 +73,15 @@ def handle_chat_shared(message, user):
             community = service_manager.create_community(community_chat_id, chat_title, message['from'].get('language_code', 'en'))
             service_manager.add_user_to_community(user['id'], community['id'])
             send_message_with_keyboard(chat_id, 'community_created', reply_markup={'remove_keyboard': True})
-            send_app_keyboard(chat_id, community)
+            send_app_keyboard(chat_id, community)    
 
-def handle_private_hashtag(message, user, is_caption=False):
-    """
-    Handle hashtags in private chats.
-    """
-    chat_id = message['chat']['id']
-    text = message.get('text', '')
-    user_id = message['from']['id']
-    
-
-    logger.info(f"Received private message: {text} from chat_id: {chat_id}")
 
 def handle_private_command(message, command, user):
     """
     Handle bot commands in private chats.
     """
     chat_id = message['chat']['id']
+    user_language = message['from'].get('language_code', 'en')
     
     # Extract the command without the bot name if it includes '@'
     command = command.split('@')[0]
@@ -101,6 +92,9 @@ def handle_private_command(message, command, user):
         send_message(chat_id, 'private_welcome')
     elif command == '/help':
         send_message(chat_id, 'private_help')
+    elif command == '/enable-notifications':
+        service_manager.set_user_notifications_enabled(user['id'], True)
+        send_message(chat_id, 'notifications_enabled')
     elif command == '/join':
         button = {
             'text': "Select a community chat to join",
@@ -126,5 +120,13 @@ def handle_private_command(message, command, user):
             }
         }
         send_message_with_keyboard(chat_id, 'please_select_chat', reply_markup={'keyboard': [[button]], 'resize_keyboard': True, 'one_time_keyboard': True})
+    elif command == '/list':
+        communities = [service_manager.get_community_by_id(community_id) for community_id in user['communities']]
+        if not communities:
+            send_message(chat_id, 'no_communities', language=user_language)
+            return
+
+        send_app_list_keyboard(chat_id, communities, user_language)
+
 
     # Add more private chat commands as needed
