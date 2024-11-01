@@ -26,7 +26,7 @@ def handle_private_message(message):
         logger.info(f"Created new user with id: {user_id}")
     else:
         logger.info(f"Found existing user with id: {user_id}")
-        if not user['chatId']:
+        if not user.get('chatId', None):
             service_manager.set_user_chat_id(user_id, chat_id)
             logger.info(f"Updated chat_id for user with id: {user_id}")
 

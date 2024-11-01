@@ -137,7 +137,8 @@ def validate_telegram_init_data():
                     "id": user_info['id'],
                     "first_name": user_info['first_name'],
                     "last_name": user_info['last_name'],
-                    "username": user_info['username']
+                    "username": user_info['username'],
+                    "notifications_enabled": user.get('notificationsEnabled', False)
                 }
             })
     
@@ -156,7 +157,8 @@ def validate_telegram_init_data():
             "id": user_info['id'],
             "first_name": user_info['first_name'],
             "last_name": user_info['last_name'],
-            "username": user_info['username']
+            "username": user_info['username'],
+            "notifications_enabled": user.get('notificationsEnabled', False)
         }
     })
 
