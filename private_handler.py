@@ -92,7 +92,7 @@ def handle_private_command(message, command, user):
         send_message(chat_id, 'private_welcome')
     elif command == '/help':
         send_message(chat_id, 'private_help')
-    elif command == '/enable-notifications':
+    elif command == '/enable_notifications':
         service_manager.set_user_notifications_enabled(user['id'], True)
         send_message(chat_id, 'notifications_enabled')
     elif command == '/join':

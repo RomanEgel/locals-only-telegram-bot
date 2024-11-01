@@ -193,14 +193,14 @@ class LocalsUser:
         user = {
             "_id": Int64(id),
             "communities": communities or [],
-            "chatId": chatId,
+            "chatId": Int64(chatId),
             "notificationsEnabled": False
         }
         self.collection.insert_one(user)
         return format_entity(user)
     
     def set_chat_id(self, id: int, chatId: int):
-        self.collection.update_one({"_id": Int64(id)}, {"$set": {"chatId": chatId}})
+        self.collection.update_one({"_id": Int64(id)}, {"$set": {"chatId": Int64(chatId)}})
 
     def set_notifications_enabled(self, id: int, notificationsEnabled: bool):
         self.collection.update_one({"_id": Int64(id)}, {"$set": {"notificationsEnabled": notificationsEnabled}})
