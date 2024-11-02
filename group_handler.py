@@ -1,7 +1,10 @@
 import logging
+import time
+from itertools import islice
 from common_utils import (
     send_message, send_app_keyboard,
-    process_image_or_document, handle_entity_creation_from_hashtag
+    process_image_or_document, handle_entity_creation_from_hashtag,
+    send_entity_link
 )
 from config import service_manager
 
@@ -100,4 +103,22 @@ def handle_hashtag(message, is_caption=False):
         logger.info(f"Community not found for chat_id: {chat_id}")
         return
 
-    handle_entity_creation_from_hashtag(message, community, is_caption, is_private=False)
+    entity, image_url = handle_entity_creation_from_hashtag(message, community, is_caption, is_private=False)
+    if entity and entity['messageId']:
+        users = service_manager.search_users_in_community(community['id'], {"notificationsEnabled": True, "chatId": {"$ne": "null"}})
+        
+        # Process users in batches of 30
+        batch_size = 30
+        user_list = list(users)
+        
+        for i in range(0, len(user_list), batch_size):
+            # Get the next batch of users
+            batch = list(islice(user_list, i, i + batch_size))
+            
+            # Forward messages to users in the current batch
+            for user in batch:
+                send_entity_link(user['chatId'], community['id'], entity['id'], entity['title'], community.get('language', 'en'), image_url)
+            
+            # If there are more messages to send, wait 1 second before the next batch
+            if i + batch_size < len(user_list):
+                time.sleep(1)

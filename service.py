@@ -41,9 +41,12 @@ class BaseEntity:
         self.collection.insert_one(entity)
         return format_entity(entity)
 
+    def get_by_id(self, id):
+        entity = self.collection.find_one({"_id": id})
+        return format_entity(entity) if entity else None
+
     def search(self, communityId):
-        entities = list(self.collection.find({"communityId": communityId}))
-        return [format_entity(entity) for entity in entities]
+        return [format_entity(entity) for entity in self.collection.find({"communityId": communityId})]
     
     def get_categories_by_community_id(self, communityId):
         categories = self.collection.distinct("category", {"communityId": communityId})
@@ -193,7 +196,7 @@ class LocalsUser:
         user = {
             "_id": Int64(id),
             "communities": communities or [],
-            "chatId": Int64(chatId),
+            "chatId": chatId and Int64(chatId) or None,
             "notificationsEnabled": False
         }
         self.collection.insert_one(user)
@@ -208,6 +211,9 @@ class LocalsUser:
     def get_by_id(self, user_id: int):
         user = self.collection.find_one({"_id": Int64(user_id)})
         return format_entity(user) if user else None
+
+    def search(self, community_id: str, filter: dict = None):
+        return [format_entity(entity) for entity in self.collection.find({"communities": community_id, **(filter or {})})]
 
     def add_community(self, user_id: int, community_id: str):
         result = self.collection.update_one(
@@ -240,8 +246,7 @@ class MediaGroup:
         self.collection.update_one({"_id": id}, {"$push": {"images": image}})
 
     def get_by_ids(self, ids: List[str]):
-        media_groups = self.collection.find({"_id": {"$in": ids}})
-        return [format_entity(media_group) for media_group in media_groups]
+        return [format_entity(entity) for entity in self.collection.find({"_id": {"$in": ids}})]
 
 class ServiceManager:
     def __init__(self):
@@ -328,6 +333,26 @@ class ServiceManager:
 
     def delete_news(self, id, communityId, userId):
         return self.news.delete(id, communityId, userId)
+    
+    def get_entity_by_id(self, entity_id):
+        # Try each entity type one by one
+        entity = self.item.get_by_id(entity_id)
+        if entity:
+            return entity, 'items'
+            
+        entity = self.service.get_by_id(entity_id)
+        if entity:
+            return entity, 'services'
+            
+        entity = self.event.get_by_id(entity_id)
+        if entity:
+            return entity, 'events'
+            
+        entity = self.news.get_by_id(entity_id)
+        if entity:
+            return entity, 'news'
+            
+        return None, None
 
     def create_user(self, user_id: int, communities: List[str], chatId: int = None):
         return self.user.create(user_id, communities, chatId)
@@ -351,6 +376,9 @@ class ServiceManager:
 
     def set_user_notifications_enabled(self, id: int, notificationsEnabled: bool):
         return self.user.set_notifications_enabled(id, notificationsEnabled)
+
+    def search_users_in_community(self, community_id: str, filter: dict = None):
+        return self.user.search(community_id, filter)
     
     def set_user_chat_id(self, id: int, chatId: int):
         return self.user.set_chat_id(id, chatId)

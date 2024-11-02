@@ -45,10 +45,33 @@ def send_message(chat_id, text_key, language='en', **kwargs):
     url = f"{TELEGRAM_API_URL}/sendMessage"
     payload = {
         'chat_id': chat_id,
-        'text': text
+        'text': text,
+        'protect_content': True
     }
     response = requests.post(url, json=payload)
     return response.json()
+
+def send_entity_link(chat_id, community_id, entity_id, entity_title, language, image_url):
+    translations = {
+        'en': {
+            'open': "Open in App"
+        },
+        'ru': {
+            'open': "Открыть в Приложении"
+        }
+    }
+    
+    url = WEB_APP_LINK + f"?startapp={community_id}_{entity_id}"
+    keyboard = [
+        [{'text': translations[language]['open'], 'url': url}]
+    ]
+    link_preview_options = {
+        'prefer_large_media': True,
+        'show_above_text': True,
+        'url': image_url
+    }
+    send_message_with_keyboard(chat_id, entity_title, reply_markup={'inline_keyboard': keyboard}, language=language, link_preview_options=link_preview_options)
+
 
 def send_app_list_keyboard(chat_id, communities, language):
     keyboard = []
@@ -79,6 +102,7 @@ def send_app_keyboard(chat_id, community):
     payload = {
         'chat_id': chat_id,
         'text': text,
+        'protect_content': True,
         'reply_markup': {
             'inline_keyboard': [[
                 {
@@ -91,7 +115,7 @@ def send_app_keyboard(chat_id, community):
     response = requests.post(api_url, json=payload)
     return response.json()
 
-def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='en'):
+def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='en', link_preview_options=None):
     """
     Send a message with keyboard buttons.
     """
@@ -122,7 +146,9 @@ def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='e
     payload = {
         'chat_id': chat_id,
         'text': text,
-        'reply_markup': reply_markup
+        'reply_markup': reply_markup,
+        'protect_content': True,
+        'link_preview_options': link_preview_options
     }
     response = requests.post(url, json=payload)
 
@@ -307,16 +333,17 @@ def handle_entity_creation_from_hashtag(message, community, is_caption, is_priva
     # Process the extracted_info
     try:
         if entity_type == 'event':
-            service_manager.create_event(**extracted_info)
+            entity = service_manager.create_event(**extracted_info)
         elif entity_type == 'news':
-            service_manager.create_news(**extracted_info)
+            entity = service_manager.create_news(**extracted_info)
         elif entity_type == 'item':
-            service_manager.create_item(**extracted_info)
+            entity = service_manager.create_item(**extracted_info)
         elif entity_type == 'service':
-            service_manager.create_service(**extracted_info)
+            entity = service_manager.create_service(**extracted_info)
         
         logger.info(f"Processed {entity_type} for community: {community['id']}")
         set_message_reaction(message['chat']['id'], message['message_id'], "⚡")
+        return entity, image_url
     except Exception as e:
         logger.error(f"Error processing {entity_type}: {str(e)}", exc_info=True)
 

@@ -74,7 +74,14 @@ def token_required(fail_if_not_ready=True):
                     logger.error(f"Error decoding user info: {user_info_str}")
                     return jsonify({"error": "Invalid user information"}), 400
 
-                community_id = parsed_data.get('start_param', '')
+                start_param = parsed_data.get('start_param', '')
+                if start_param:
+                    split = start_param.split('_')
+                    community_id = split[0]
+                    entity_id = split[1] if len(split) > 1 else None
+                else:
+                    community_id = None
+                    entity_id = None
 
                 if not community_id:
                     if community_id_header:
@@ -90,7 +97,10 @@ def token_required(fail_if_not_ready=True):
                 
                 community = service_manager.get_community_by_id(community_id)
                 request.community_is_not_specified = False
-
+                if entity_id:
+                    entity, entity_type = service_manager.get_entity_by_id(entity_id)
+                    request.entity = entity
+                    request.entity_type = entity_type
                 if not community:
                     return jsonify({"valid": False}), 404
                 
@@ -127,8 +137,11 @@ def validate_telegram_init_data():
     """
     user_info = request.user_info
     user = service_manager.get_user(user_info['id'])
+    if not user:
+        user = service_manager.create_user(user_info['id'], [])
+
     if request.community_is_not_specified:
-        community_ids = user['communities'] if user['communities'] else []
+        community_ids = user.get('communities', [])
         return jsonify({
                 "valid": True,
                 "community_is_not_specified": True,
@@ -153,6 +166,8 @@ def validate_telegram_init_data():
         "ready": community['status'] == 'READY',
         "admin": is_admin,
         "community": community,
+        "entity": getattr(request, 'entity', None),
+        "entity_type": getattr(request, 'entity_type', None),
         "user": {
             "id": user_info['id'],
             "first_name": user_info['first_name'],
