@@ -4,7 +4,7 @@ from itertools import islice
 from common_utils import (
     send_message, send_app_keyboard,
     process_image_or_document, handle_entity_creation_from_hashtag,
-    send_entity_link
+    send_entity_link, get_supported_language
 )
 from config import service_manager
 
@@ -64,12 +64,10 @@ def handle_command(message, command):
     community = service_manager.get_community_by_chat_id(chat_id)
     if not community:
         # Get the user's language code from the message
-        user_language_code = message['from'].get('language_code', 'en')
-        # Map the language code to 'en' or 'ru', defaulting to 'en' for unsupported languages
-        initial_language = 'ru' if user_language_code.startswith('ru') else 'en'
+        user_language_code = get_supported_language(message['from'].get('language_code', 'en'))
         
-        community = service_manager.create_community(chat_id, message['chat']['title'], initial_language)
-        logger.info(f"Created new community for chat_id: {chat_id} with initial language: {initial_language}")
+        community = service_manager.create_community(chat_id, message['chat']['title'], user_language_code)
+        logger.info(f"Created new community for chat_id: {chat_id} with initial language: {user_language_code}")
 
     # Check if the user is already in the community
     if message['from'].get('username') != 'GroupAnonymousBot':

@@ -1,5 +1,5 @@
 import logging
-from common_utils import send_app_keyboard, send_message, send_message_with_keyboard, send_app_list_keyboard, get_chat_administrators  # Updated import
+from common_utils import send_app_keyboard, send_message, send_message_with_keyboard, send_app_list_keyboard, send_advertise_setup_keyboard, get_chat_administrators, get_supported_language  # Updated import
 from config import service_manager
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ def handle_chat_shared(message, user):
             return
         else:
             chat_title = chat_shared['title']
-            community = service_manager.create_community(community_chat_id, chat_title, message['from'].get('language_code', 'en'))
+            community = service_manager.create_community(community_chat_id, chat_title, get_supported_language(message['from'].get('language_code', 'en')))
             service_manager.add_user_to_community(user['id'], community['id'])
             send_message_with_keyboard(chat_id, 'community_created', reply_markup={'remove_keyboard': True})
             send_app_keyboard(chat_id, community)    
@@ -81,7 +81,7 @@ def handle_private_command(message, command, user):
     Handle bot commands in private chats.
     """
     chat_id = message['chat']['id']
-    user_language = message['from'].get('language_code', 'en')
+    user_language = get_supported_language(message['from'].get('language_code', 'en'))
     
     # Extract the command without the bot name if it includes '@'
     command = command.split('@')[0]
@@ -127,6 +127,7 @@ def handle_private_command(message, command, user):
             return
 
         send_app_list_keyboard(chat_id, communities, user_language)
-
+    elif command == '/advertise':
+        send_advertise_setup_keyboard(chat_id, user_language)
 
     # Add more private chat commands as needed

@@ -248,6 +248,24 @@ class MediaGroup:
     def get_by_ids(self, ids: List[str]):
         return [format_entity(entity) for entity in self.collection.find({"_id": {"$in": ids}})]
 
+class LocalsAdvertisement:
+    def __init__(self, db):
+        self.collection = db['advertisements']
+    
+    def create(self, id: str, userId: int, location: dict, range: int, entityType: str):
+        advertisement = {
+            "_id": id,
+            "userId": userId,
+            "location": location,
+            "range": range,
+            "entityType": entityType
+        }
+        self.collection.insert_one(advertisement)
+        return format_entity(advertisement)
+
+    def find_by_user_id(self, userId: int):
+        return [format_entity(entity) for entity in self.collection.find({"userId": userId})]
+
 class ServiceManager:
     def __init__(self):
         db_uri = os.environ.get('MONGODB_URI')

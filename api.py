@@ -10,7 +10,7 @@ from config import service_manager, storage_client  # Import storage_client from
 from common_utils import get_chat_administrators, get_chat_member
 import json
 import requests
-
+from common_utils import get_supported_language, is_language_supported
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def validate_init_data(init_data: str, bot_token: str) -> tuple[dict, bool]:
     # Step 5 & 6: Compare the calculated hash with the provided hash
     return (parsed_data, hmac.compare_digest(data_check_hash, hash_value))
 
-def token_required(fail_if_not_ready=True):
+def token_required(community_specific_request=True):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
@@ -75,6 +75,13 @@ def token_required(fail_if_not_ready=True):
                     return jsonify({"error": "Invalid user information"}), 400
 
                 start_param = parsed_data.get('start_param', '')
+                if start_param == 'advertise':
+                    if community_specific_request:
+                        return jsonify({"error": "Invalid request"}), 400
+                    else:
+                        request.advertise = True
+                        return f(*args, **kwargs)
+                
                 if start_param:
                     split = start_param.split('_')
                     community_id = split[0]
@@ -89,14 +96,13 @@ def token_required(fail_if_not_ready=True):
                         if user and community_id_header not in user['communities']:
                             return jsonify({"error": "User is not part of this community"}), 404
                         community_id = community_id_header
-                    elif fail_if_not_ready:
+                    elif community_specific_request:
                         return jsonify({"error": "Invalid request"}), 400
                     else:
                         request.community_is_not_specified = True
                         return f(*args, **kwargs)
                 
                 community = service_manager.get_community_by_id(community_id)
-                request.community_is_not_specified = False
                 if entity_id:
                     entity, entity_type = service_manager.get_entity_by_id(entity_id)
                     request.entity = entity
@@ -104,7 +110,7 @@ def token_required(fail_if_not_ready=True):
                 if not community:
                     return jsonify({"valid": False}), 404
                 
-                if fail_if_not_ready and community['status'] != 'READY':
+                if community_specific_request and community['status'] != 'READY':
                     return jsonify({"error": "Community is not ready"}), 403
 
                 # Get chat administrators
@@ -119,8 +125,6 @@ def token_required(fail_if_not_ready=True):
                 admin_usernames = [admin['user']['username'] for admin in admins if 'username' in admin['user']]
                 
                 request.is_admin = user_info['username'] in admin_usernames  # Store admin status in request context
-                # Extract language code, defaulting to 'en' if not present
-                request.language_code = user_info.get('language_code', 'en')
                 return f(*args, **kwargs)
             except Exception as e:
                 logger.error(f"Error validating init data: {str(e)}", exc_info=True)
@@ -130,7 +134,7 @@ def token_required(fail_if_not_ready=True):
     return decorator
 
 @api_blueprint.route("/api/init", methods=['POST', 'OPTIONS'])
-@token_required(fail_if_not_ready=False)
+@token_required(community_specific_request=False)
 def validate_telegram_init_data():
     """
     Validate the InitData received from Telegram mini app.
@@ -140,7 +144,19 @@ def validate_telegram_init_data():
     if not user:
         user = service_manager.create_user(user_info['id'], [])
 
-    if request.community_is_not_specified:
+    if getattr(request, 'advertise', False):        
+        return jsonify({
+            "valid": True, 
+            "advertise": True, 
+            "user": {
+                "id": user_info['id'],
+                "first_name": user_info['first_name'],
+                "last_name": user_info['last_name'],
+                "username": user_info['username'],
+                "language_code": get_supported_language(user_info.get('language_code', 'en'))
+            }})
+
+    if getattr(request, 'community_is_not_specified', False):
         community_ids = user.get('communities', [])
         return jsonify({
                 "valid": True,
@@ -187,7 +203,7 @@ def handle_theming():
 
 
 @api_blueprint.route("/api/community/_setup", methods=['POST', 'OPTIONS'])
-@token_required(fail_if_not_ready=False)
+@token_required(community_specific_request=False)
 def setup_community():
     """
     Setup a community.
@@ -204,6 +220,9 @@ def setup_community():
     
     if not setup_data.get('language') or not setup_data.get('location') or not setup_data.get('entitySettings'):
         return jsonify({"error": "Missing required parameters"}), 400
+    
+    if not is_language_supported(setup_data.get('language')):
+        return jsonify({"error": "Unsupported language"}), 400
 
     service_manager.update_community(request.community['id'], {
         "status": "READY",

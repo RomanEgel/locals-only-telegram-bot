@@ -115,6 +115,20 @@ def send_app_keyboard(chat_id, community):
     response = requests.post(api_url, json=payload)
     return response.json()
 
+def send_advertise_setup_keyboard(chat_id, language):
+    translations = {
+        'en': {
+            'setup_advertising': "Start"
+        },
+        'ru': {
+            'setup_advertising': "Начать"
+        }
+    }
+    keyboard = [
+        [{'text': translations[language]['setup_advertising'], 'url': WEB_APP_LINK + f"?startapp=advertise"}],
+    ]
+    send_message_with_keyboard(chat_id, 'advertise_setup', reply_markup={'inline_keyboard': keyboard}, language=language)
+
 def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='en', link_preview_options=None):
     """
     Send a message with keyboard buttons.
@@ -128,6 +142,7 @@ def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='e
             'community_created': "Community created successfully!",
             'bot_has_no_administrator_rights': "Bot has no administrator rights. Please add the bot to the chat as an administrator and try again.",
             'communities_app_list': "Communities List",
+            'advertise_setup': "Setup advertising",
         },
         'ru': {
             'please_select_chat': "Пожалуйста, выберите чат:",
@@ -137,6 +152,7 @@ def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='e
             'community_created': "Сообщество успешно создано!",
             'bot_has_no_administrator_rights': "Бот не имеет прав администратора. Пожалуйста, добавьте бота в чат как администратора и попробуйте снова.",
             'communities_app_list': "Список Сообществ",
+            'advertise_setup': "Настройка рекламы",
         }
     }
 
@@ -146,10 +162,12 @@ def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='e
     payload = {
         'chat_id': chat_id,
         'text': text,
-        'reply_markup': reply_markup,
         'protect_content': True,
-        'link_preview_options': link_preview_options
     }
+    if reply_markup:
+        payload['reply_markup'] = reply_markup
+    if link_preview_options:
+        payload['link_preview_options'] = link_preview_options
     response = requests.post(url, json=payload)
 
     return response.json()
@@ -358,12 +376,14 @@ def set_bot_commands():
             {'command': 'join', 'description': 'Join a community'},
             {'command': 'create', 'description': 'Create a new community'},
             {'command': 'list', 'description': 'List communities that you are a member of'},
+            {'command': 'advertise', 'description': 'Setup advertising for nearby communities'},
             # Add more commands as needed
         ],
         'ru': [
             {'command': 'join', 'description': 'Присоединиться к сообществу'},
             {'command': 'create', 'description': 'Создать новое сообщество'},
             {'command': 'list', 'description': 'Список сообществ, в которых вы состоите'},
+            {'command': 'advertise', 'description': 'Настройка рекламы для близлежащих сообществ'},
             # Add more commands as needed
         ],
         # Add more languages as needed
@@ -383,3 +403,9 @@ def set_bot_commands():
                 logger.error(f"Failed to set commands for language {language_code}. Response: {response.text}")
         except Exception as e:
             logger.error(f"Error setting commands for language {language_code}: {str(e)}")
+
+def get_supported_language(language_code):
+    return 'en' if language_code not in ['en', 'ru'] else language_code
+
+def is_language_supported(language):
+    return language in ['en', 'ru']
