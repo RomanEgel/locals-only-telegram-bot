@@ -223,6 +223,9 @@ def setup_community():
     
     if not is_language_supported(setup_data.get('language')):
         return jsonify({"error": "Unsupported language"}), 400
+    
+    if not setup_data.get('location').get('lat') or not setup_data.get('location').get('lng'):
+        return jsonify({"error": "Missing location coordinates"}), 400
 
     service_manager.update_community(request.community['id'], {
         "status": "READY",
@@ -232,6 +235,19 @@ def setup_community():
     })
     return jsonify({"message": "Setup parameters received successfully"}), 200
 
+
+@api_blueprint.route("/api/communities/coordinates", methods=['GET', 'OPTIONS'])
+@token_required(community_specific_request=False)
+def get_communities_coordinates():
+    """
+    Get all communities coordinates.
+    """
+    if not getattr(request, 'advertise', False):
+        return jsonify({"error": "Invalid request"}), 400
+    
+    communities = service_manager.get_all_communities()
+    coordinates = [community.get('location', {}) for community in communities]
+    return jsonify({"coordinates": coordinates}), 200
 
 
 @api_blueprint.route("/api/items", methods=['GET', 'OPTIONS'])

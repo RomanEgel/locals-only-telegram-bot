@@ -110,6 +110,9 @@ class LocalsCommunity:
             return_document=ReturnDocument.AFTER
         )
         return format_entity(community) if community else None
+    
+    def find_all(self):
+        return [format_entity(entity) for entity in self.collection.find()]
 
 class LocalsItem(BaseEntity):
     def __init__(self, db):
@@ -291,6 +294,9 @@ class ServiceManager:
 
     def update_community(self, communityId, update_data):
         return self.community.update(communityId, update_data)
+    
+    def get_all_communities(self):
+        return self.community.find_all()
 
     def create_item(self, id, title, price, currency, author, userId, publishedAt, category, description, communityId, messageId, mediaGroupId):
         return self.item.create(id, title, author, userId, publishedAt, category, description, communityId, messageId, price=price, currency=currency, mediaGroupId=mediaGroupId)
