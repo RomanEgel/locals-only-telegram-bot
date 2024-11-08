@@ -1,3 +1,4 @@
+import uuid
 from flask import Blueprint, request, jsonify
 import os
 import hashlib
@@ -9,7 +10,7 @@ from config import service_manager, storage_client  # Import storage_client from
 from common_utils import get_chat_administrators, get_chat_member
 import json
 import requests
-from common_utils import get_supported_language, is_language_supported, is_currency_supported, is_location_in_range
+from common_utils import get_supported_language, is_language_supported, is_currency_supported, is_location_in_range, generate_gcs_upload_link_for_image, check_file_exists_in_gcs
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -248,6 +249,27 @@ def get_communities_coordinates():
     coordinates = [community.get('location', {}) for community in communities]
     return jsonify({"coordinates": coordinates}), 200
 
+@api_blueprint.route("/api/media-groups", methods=['POST', 'OPTIONS'])
+@token_required(community_specific_request=False)
+def create_media_group_for_ad_image_upload():
+    """
+    Create a media group for an advertisement image upload.
+    """
+    logger.info(f"Received media group creation request: {request.json}")
+    image_names = request.json['images']
+    if not image_names:
+        return jsonify({"error": "Missing images"}), 400
+    
+    images = []
+    upload_links = []
+    for image_name in image_names:
+        gcs_public_url, gcs_upload_link = generate_gcs_upload_link_for_image(image_name)
+        images.append(gcs_public_url)
+        upload_links.append(gcs_upload_link)
+
+    media_group = service_manager.create_media_group(str(uuid.uuid4()), images)
+    return jsonify({"mediaGroupId": media_group["id"], "uploadLinks": upload_links}), 200
+    
 
 @api_blueprint.route("/api/advertisements", methods=['POST', 'OPTIONS'])
 @token_required(community_specific_request=False)
@@ -264,8 +286,9 @@ def create_advertisement():
     description = request.json.get('description')
     price = request.json.get('price')
     currency = request.json.get('currency')
+    media_group_id = request.json.get('mediaGroupId')
 
-    if not title or not description or not price or not currency or not entity_type or not location or not range:
+    if not title or not description or not price or not currency or not entity_type or not location or not range or not media_group_id:
         return jsonify({"error": "Missing required parameters"}), 400
     if entity_type not in ['item', 'service']:
         return jsonify({"error": "Invalid entity type"}), 400
@@ -282,7 +305,16 @@ def create_advertisement():
     if not is_location_in_range(location, coordinates, range):
         return jsonify({"error": "Location is out of range"}), 400
     
-    service_manager.create_advertisement(user_id, location, range, entity_type, title, description, price, currency)
+    media_groups = service_manager.get_media_groups([media_group_id])
+    if not media_groups:
+        return jsonify({"error": "Media group not found"}), 404
+    media_group = media_groups[0]
+    images = media_group['images']
+    for gcs_public_url in images:
+        if not check_file_exists_in_gcs(gcs_public_url):
+            return jsonify({"error": "Images are not uploaded correctly"}), 404
+
+    service_manager.create_advertisement(user_id, media_group_id, location, range, entity_type, title, description, price, currency)
 
     return jsonify({"message": "Advertisement created successfully"}), 200
 

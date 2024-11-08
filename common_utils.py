@@ -1,11 +1,13 @@
 import os
 import logging
+import uuid
 import requests
 import re
 from config import service_manager, storage_client
 from service import LocalsItem, LocalsService, LocalsEvent, LocalsNews
 from ai_extractor import extract_entity_info_with_ai
 from math import radians, sin, cos, sqrt, atan2
+import google.auth
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +206,7 @@ def upload_to_gcs(file_content, destination_blob_name):
     """
     bucket = storage_client.bucket(GCS_BUCKET_NAME)
     blob = bucket.blob(destination_blob_name)
-    blob.upload_from_string(file_content)
+    blob.upload_from_string(file_content, content_type="image/jpg")
     
     return blob.public_url
 
@@ -383,7 +385,7 @@ def set_bot_commands():
         'ru': [
             {'command': 'join', 'description': 'Присоединиться к сообществу'},
             {'command': 'create', 'description': 'Создать новое сообщество'},
-            {'command': 'list', 'description': 'Список сообществ, в которых вы состоите'},
+            {'command': 'list', 'description': 'Список собществ, в которых вы состоите'},
             {'command': 'advertise', 'description': 'Настройка рекламы для близлежащих сообществ'},
             # Add more commands as needed
         ],
@@ -451,3 +453,78 @@ def is_location_in_range(location, coordinates, range):
             return True
             
     return False
+
+def format_gcs_filename(filename):
+    """
+    Format filename to be GCS-safe by:
+    1. Converting to lowercase
+    2. Removing special characters except dash and underscore
+    3. Replacing spaces with dashes
+    4. Ensuring it ends with an image extension
+    """
+    # Convert to lowercase
+    filename = filename.lower()
+    
+    # Get the extension if it exists
+    name, ext = os.path.splitext(filename)
+    
+    # Remove special characters except dash and underscore
+    name = re.sub(r'[^a-z0-9-_]', '-', name)
+    
+    # Replace multiple dashes with single dash
+    name = re.sub(r'-+', '-', name)
+    
+    # Remove leading and trailing dashes
+    name = name.strip('-')
+    
+    # If no valid extension, default to .jpg
+    valid_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.svg'}
+    if not ext or ext.lower() not in valid_extensions:
+        ext = '.jpg'
+    
+    return f"{name}{ext}"
+
+def generate_gcs_upload_link_for_image(image_name):
+    formatted_name = format_gcs_filename(image_name)
+    gcs_object_id = "ad-images/" + str(uuid.uuid4()) + "_" + formatted_name
+    
+    bucket = storage_client.bucket(GCS_BUCKET_NAME)
+    blob = bucket.blob(gcs_object_id)
+
+    try:
+        # Get default credentials and verify them
+        credentials, _ = google.auth.default()
+        # Perform a refresh request to get the access token of the current credentials (Else, it's None)
+        from google.auth.transport import requests
+        r = requests.Request()
+        credentials.refresh(r)
+
+        gcs_upload_link = blob.generate_signed_url(
+            version="v4",
+            expiration=600,  # 10 minutes
+            method="PUT",
+            content_type="image/jpg",
+            service_account_email=credentials.service_account_email,
+            access_token=credentials.token
+        )
+        logger.info("Successfully generated signed URL")
+
+    except Exception as e:
+        logger.error(f"Failed to generate signed URL: {str(e)}", exc_info=True)
+        raise
+
+    gcs_public_url = blob.public_url
+    return gcs_public_url, gcs_upload_link
+
+def check_file_exists_in_gcs(public_url):
+    """Check if a file exists in GCS"""
+    if not public_url.startswith('https://storage.googleapis.com/'):
+        return None
+    
+    # Remove the storage.googleapis.com prefix
+    path = public_url.replace('https://storage.googleapis.com/', '')
+    # Split into bucket and blob path
+    bucket_name, blob_path = path.split('/', 1)
+    
+    bucket = storage_client.bucket(bucket_name)
+    return bucket.blob(blob_path).exists()

@@ -255,10 +255,11 @@ class LocalsAdvertisement:
     def __init__(self, db):
         self.collection = db['advertisements']
     
-    def create(self, userId: int, location: dict, range: int, entityType: str, title: str, description: str, price: float, currency: str):
+    def create(self, userId: int, mediaGroupId: str, location: dict, range: int, entityType: str, title: str, description: str, price: float, currency: str):
         advertisement = {
             "_id": str(uuid.uuid4()),
             "userId": userId,
+            "mediaGroupId": mediaGroupId,
             "location": location,
             "range": range,
             "entityType": entityType,
@@ -422,8 +423,8 @@ class ServiceManager:
     def get_media_groups(self, ids: List[str]):
         return self.media_group.get_by_ids(ids)
     
-    def create_advertisement(self, userId: int, location: dict, range: int, entityType: str, title: str, description: str, price: float, currency: str):
-        return self.advertisement.create(userId, location, range, entityType, title, description, price, currency)
+    def create_advertisement(self, userId: int, mediaGroupId: str, location: dict, range: int, entityType: str, title: str, description: str, price: float, currency: str):
+        return self.advertisement.create(userId, mediaGroupId, location, range, entityType, title, description, price, currency)
     
     def find_advertisements_by_user_id(self, userId: int):
         return self.advertisement.find_by_user_id(userId)
