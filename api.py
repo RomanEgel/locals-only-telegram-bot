@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify
-from flask_cors import cross_origin
 import os
 import hashlib
 import hmac
@@ -10,7 +9,7 @@ from config import service_manager, storage_client  # Import storage_client from
 from common_utils import get_chat_administrators, get_chat_member
 import json
 import requests
-from common_utils import get_supported_language, is_language_supported
+from common_utils import get_supported_language, is_language_supported, is_currency_supported, is_location_in_range
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -249,6 +248,43 @@ def get_communities_coordinates():
     coordinates = [community.get('location', {}) for community in communities]
     return jsonify({"coordinates": coordinates}), 200
 
+
+@api_blueprint.route("/api/advertisements", methods=['POST', 'OPTIONS'])
+@token_required(community_specific_request=False)
+def create_advertisement():
+    """
+    Create an advertisement.
+    """
+    logger.info(f"Received advertisement parameters: {request.json}")
+    user_id = request.user_info['id']
+    location = request.json.get('location')
+    range = request.json.get('range')
+    entity_type = request.json.get('entityType')
+    title = request.json.get('title')
+    description = request.json.get('description')
+    price = request.json.get('price')
+    currency = request.json.get('currency')
+
+    if not title or not description or not price or not currency or not entity_type or not location or not range:
+        return jsonify({"error": "Missing required parameters"}), 400
+    if entity_type not in ['item', 'service']:
+        return jsonify({"error": "Invalid entity type"}), 400
+    if not is_currency_supported(currency):
+        return jsonify({"error": "Unsupported currency"}), 400
+    if price <= 0 or price > 1000000:
+        return jsonify({"error": "Invalid price"}), 400
+    if not location.get('lat') or not location.get('lng'):
+        return jsonify({"error": "Missing location coordinates"}), 400
+    if range < 1 or range > 100:
+        return jsonify({"error": "Invalid range"}), 400
+
+    coordinates = [community.get('location', {}) for community in service_manager.get_all_communities()]
+    if not is_location_in_range(location, coordinates, range):
+        return jsonify({"error": "Location is out of range"}), 400
+    
+    service_manager.create_advertisement(user_id, location, range, entity_type, title, description, price, currency)
+
+    return jsonify({"message": "Advertisement created successfully"}), 200
 
 @api_blueprint.route("/api/items", methods=['GET', 'OPTIONS'])
 @token_required()

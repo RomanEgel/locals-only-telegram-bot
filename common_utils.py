@@ -5,6 +5,7 @@ import re
 from config import service_manager, storage_client
 from service import LocalsItem, LocalsService, LocalsEvent, LocalsNews
 from ai_extractor import extract_entity_info_with_ai
+from math import radians, sin, cos, sqrt, atan2
 
 logger = logging.getLogger(__name__)
 
@@ -409,3 +410,44 @@ def get_supported_language(language_code):
 
 def is_language_supported(language):
     return language in ['en', 'ru']
+
+def is_currency_supported(currency):
+    return currency in ['USD', 'EUR', 'RUB']
+
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    # Radius of Earth in kilometers
+    R = 6371.0
+        
+    # Convert coordinates to radians
+    lat1, lon1 = radians(lat1), radians(lon1)
+    lat2, lon2 = radians(lat2), radians(lon2)
+        
+    # Differences in coordinates
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+        
+    # Haversine formula
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+        
+    # Calculate distance
+    distance = R * c
+    return distance
+
+def is_location_in_range(location, coordinates, range):
+    # Check if any coordinate is within range
+    for coord in coordinates:
+        if not coord.get('lat') or not coord.get('lng'):
+            continue
+            
+        distance = calculate_distance(
+            location['lat'], location['lng'],
+            coord['lat'], coord['lng']
+        )
+        
+        # Since both distance and range are in kilometers, this comparison is correct
+        if distance <= range:
+            return True
+            
+    return False
