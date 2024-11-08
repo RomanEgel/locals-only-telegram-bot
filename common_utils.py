@@ -518,13 +518,9 @@ def generate_gcs_upload_link_for_image(image_name):
 
 def check_file_exists_in_gcs(public_url):
     """Check if a file exists in GCS"""
-    if not public_url.startswith('https://storage.googleapis.com/'):
-        return None
-    
-    # Remove the storage.googleapis.com prefix
-    path = public_url.replace('https://storage.googleapis.com/', '')
-    # Split into bucket and blob path
-    bucket_name, blob_path = path.split('/', 1)
-    
-    bucket = storage_client.bucket(bucket_name)
-    return bucket.blob(blob_path).exists()
+    try:
+        response = requests.get(public_url)
+        return response.status_code == 200
+    except Exception as e:
+        logger.error(f"Failed to check if file exists in GCS: {str(e)}", exc_info=True)
+        return False
