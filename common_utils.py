@@ -484,7 +484,7 @@ def format_gcs_filename(filename):
     
     return f"{name}{ext}"
 
-def generate_gcs_upload_link_for_image(image_name):
+def generate_gcs_upload_link_for_image(image_name, image_content_type):
     formatted_name = format_gcs_filename(image_name)
     gcs_object_id = "ad-images/" + str(uuid.uuid4()) + "_" + formatted_name
     
@@ -503,7 +503,7 @@ def generate_gcs_upload_link_for_image(image_name):
             version="v4",
             expiration=600,  # 10 minutes
             method="PUT",
-            content_type="image/jpg",
+            content_type=image_content_type,
             service_account_email=credentials.service_account_email,
             access_token=credentials.token
         )

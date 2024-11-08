@@ -256,14 +256,18 @@ def create_media_group_for_ad_image_upload():
     Create a media group for an advertisement image upload.
     """
     logger.info(f"Received media group creation request: {request.json}")
-    image_names = request.json['images']
-    if not image_names:
-        return jsonify({"error": "Missing images"}), 400
+    images_data = request.json['images']
+    if not images_data or not isinstance(images_data, list) or len(images_data) < 1 or len(images_data) > 5:
+        return jsonify({"error": "Missing images or invalid number of images"}), 400
     
     images = []
     upload_links = []
-    for image_name in image_names:
-        gcs_public_url, gcs_upload_link = generate_gcs_upload_link_for_image(image_name)
+    for image_data in images_data:
+        if not image_data.get('name') or not image_data.get('contentType'):
+            return jsonify({"error": "Missing image name or content type"}), 400
+        if not image_data['contentType'].startswith('image/'):
+            return jsonify({"error": "Invalid image content type"}), 400
+        gcs_public_url, gcs_upload_link = generate_gcs_upload_link_for_image(image_data['name'], image_data['contentType'])
         images.append(gcs_public_url)
         upload_links.append(gcs_upload_link)
 
