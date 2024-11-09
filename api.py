@@ -627,7 +627,8 @@ def delete_images_if_exists(entity):
     if entity and entity.get('mediaGroupId'):
         media_groups = service_manager.get_media_groups([entity['mediaGroupId']])
         if media_groups and media_groups[0].get('images'):
-            for image in media_groups[0]['images']:
+            media_group = media_groups[0]
+            for image in media_group['images']:
                 try:
                     image_gcs_path = image.replace('https://storage.googleapis.com/', '')
                     bucket_name, blob_name = image_gcs_path.split('/', 1)
@@ -638,6 +639,7 @@ def delete_images_if_exists(entity):
                     images_deleted += 1
                 except Exception as e:
                     logger.error(f"Error deleting image from GCS: {str(e)}", exc_info=True)
+            service_manager.delete_media_group(media_group['id'])
     return images_deleted
 
 def populate_entities_with_images(entities):

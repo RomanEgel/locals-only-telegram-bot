@@ -250,6 +250,9 @@ class MediaGroup:
 
     def get_by_ids(self, ids: List[str]):
         return [format_entity(entity) for entity in self.collection.find({"_id": {"$in": ids}})]
+    
+    def delete(self, id: str):
+        self.collection.delete_one({"_id": id})
 
 class LocalsAdvertisement:
     def __init__(self, db):
@@ -426,6 +429,9 @@ class ServiceManager:
 
     def get_media_groups(self, ids: List[str]):
         return self.media_group.get_by_ids(ids)
+    
+    def delete_media_group(self, id: str):
+        return self.media_group.delete(id)
     
     def create_advertisement(self, userId: int, mediaGroupId: str, location: dict, range: int, entityType: str, title: str, description: str, price: float, currency: str):
         return self.advertisement.create(userId, mediaGroupId, location, range, entityType, title, description, price, currency)
