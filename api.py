@@ -1,3 +1,4 @@
+import random
 import uuid
 from flask import Blueprint, request, jsonify
 import os
@@ -379,6 +380,26 @@ def delete_advertisement(advertisement_id):
         return jsonify({"message": "Advertisement deleted successfully"}), 200
     else:
         return jsonify({"error": "Advertisement not found or you don't have permission to delete it"}), 404
+
+
+@api_blueprint.route("/api/advertisements/_find-for-community", methods=['GET', 'OPTIONS'])
+@token_required()
+def get_advertisement_for_community():
+    """
+    Get the advertisement for a community.
+    """
+    community_id = request.community['id']
+    community = service_manager.get_community_by_id(community_id)
+    location = community['location']
+    
+    advertisements = service_manager.find_advertisements_for_location(location)
+    ad = None
+    if advertisements:
+        # pick random ad
+        ad = random.choice(advertisements)
+        populate_entities_with_images([ad])
+    
+    return jsonify({"advertisement": ad}), 200
 
 @api_blueprint.route("/api/items", methods=['GET', 'OPTIONS'])
 @token_required()

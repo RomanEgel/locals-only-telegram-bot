@@ -257,13 +257,22 @@ class MediaGroup:
 class LocalsAdvertisement:
     def __init__(self, db):
         self.collection = db['advertisements']
+        self.collection.create_index([("geoLocation", "2dsphere")])
     
+    def format_ad_entity(self, advertisement):
+        advertisement.pop('geoLocation', None)
+        return format_entity(advertisement)
+
     def create(self, userId: int, mediaGroupId: str, location: dict, range: int, entityType: str, title: str, description: str, price: float, currency: str):
         advertisement = {
             "_id": str(uuid.uuid4()),
             "userId": userId,
             "mediaGroupId": mediaGroupId,
             "location": location,
+            "geoLocation": {
+                "type": "Point",
+                "coordinates": [location['lng'], location['lat']]
+            },
             "range": range,
             "entityType": entityType,
             "createdAt": datetime.now(),
@@ -273,14 +282,38 @@ class LocalsAdvertisement:
             "currency": currency
         }
         self.collection.insert_one(advertisement)
-        return format_entity(advertisement)
+        return self.format_ad_entity(advertisement)
 
     def find_by_user_id(self, userId: int):
-        return [format_entity(entity) for entity in self.collection.find({"userId": userId})]
+        return [self.format_ad_entity(entity) for entity in self.collection.find({"userId": userId})]
     
+    def find_for_location(self, location: dict):
+        pipeline = [
+            {
+                "$geoNear": {
+                    "near": {"type": "Point", "coordinates": [location['lng'], location['lat']]},
+                    "distanceField": "distance",
+                    "spherical": True
+                }
+            },
+            {
+                "$addFields": {
+                    "distanceInKm": {"$divide": ["$distance", 1000]}  # Convert distance from meters to kilometers
+                }
+            },
+            {
+                "$match": {
+                    "$expr": {"$lte": ["$distanceInKm", "$range"]}
+                }
+            }
+        ]
+        
+        advertisements = self.collection.aggregate(pipeline)
+        return [self.format_ad_entity(ad) for ad in advertisements]
+
     def delete(self, id: str, userId: int):
         deleted_advertisement = self.collection.find_one_and_delete({"_id": id, "userId": userId}, return_document=ReturnDocument.BEFORE)
-        return format_entity(deleted_advertisement) if deleted_advertisement else None
+        return self.format_ad_entity(deleted_advertisement) if deleted_advertisement else None
 
 class ServiceManager:
     def __init__(self):
@@ -438,6 +471,9 @@ class ServiceManager:
     
     def find_advertisements_by_user_id(self, userId: int):
         return self.advertisement.find_by_user_id(userId)
+    
+    def find_advertisements_for_location(self, location: dict):
+        return self.advertisement.find_for_location(location)
     
     def delete_advertisement(self, id: str, userId: int):
         return self.advertisement.delete(id, userId)
