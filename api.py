@@ -10,7 +10,10 @@ from config import service_manager, storage_client  # Import storage_client from
 from common_utils import get_chat_administrators, get_chat_member
 import json
 import requests
-from common_utils import get_supported_language, is_language_supported, is_currency_supported, is_location_in_range, generate_gcs_upload_link_for_image, check_file_exists_in_gcs
+from common_utils import get_supported_language, is_language_supported, is_currency_supported, is_location_in_range, generate_gcs_upload_link_for_image, check_file_exists_in_gcs, send_ad_link
+import threading
+import time
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -275,6 +278,21 @@ def create_media_group_for_ad_image_upload():
     return jsonify({"mediaGroupId": media_group["id"], "uploadLinks": upload_links}), 200
     
 
+def send_user_created_ad(advertisement_id, image_preview_url, chat_id, language_code):
+    """
+    Function to be executed in a separate thread to send a message to the user about the created advertisement
+    """
+    # Wait for 0.5 seconds to ensure the user returned back to the telegram chat.
+    time.sleep(0.5)
+    
+    try:
+        logger.info(f"Processing advertisement notification for ad ID: {advertisement_id}")
+
+        send_ad_link(chat_id, image_preview_url, language_code)
+        
+    except Exception as e:
+        logger.error(f"Error processing advertisement notifications: {str(e)}", exc_info=True)
+
 @api_blueprint.route("/api/advertisements", methods=['POST', 'OPTIONS'])
 @token_required(community_specific_request=False)
 def create_advertisement():
@@ -283,6 +301,11 @@ def create_advertisement():
     """
     logger.info(f"Received advertisement parameters: {request.json}")
     user_id = request.user_info['id']
+    user = service_manager.get_user(user_id)
+    if not user or not user['chatId']:
+        return jsonify({"error": "User not found or user hasn't interacted with the bot yet"}), 404
+
+
     location = request.json.get('location')
     range = request.json.get('range')
     entity_type = request.json.get('entityType')
@@ -318,9 +341,27 @@ def create_advertisement():
         if not check_file_exists_in_gcs(gcs_public_url):
             return jsonify({"error": "Images are not uploaded correctly"}), 404
 
-    service_manager.create_advertisement(user_id, media_group_id, location, range, entity_type, title, description, price, currency)
+    # Create the advertisement
+    advertisement = service_manager.create_advertisement(
+        user_id, 
+        media_group_id, 
+        location, 
+        range, 
+        entity_type, 
+        title, 
+        description, 
+        price, 
+        currency
+    )
 
-    return jsonify({"message": "Advertisement created successfully"}), 200
+    # Start a new thread to process notifications
+    notification_thread = threading.Thread(
+        target=send_user_created_ad,
+        args=(advertisement['id'], images[0], user['chatId'], get_supported_language(request.user_info.get('language_code', 'en')))
+    )
+    notification_thread.start()
+
+    return jsonify({"message": "Advertisement created successfully", "id": advertisement['id']}), 200
 
 @api_blueprint.route("/api/items", methods=['GET', 'OPTIONS'])
 @token_required()

@@ -54,6 +54,27 @@ def send_message(chat_id, text_key, language='en', **kwargs):
     response = requests.post(url, json=payload)
     return response.json()
 
+def send_ad_link(chat_id, image_url, language):
+    translations = {
+        'en': {
+            'open': "Open Advertisement in App"
+        },
+        'ru': {
+            'open': "Открыть Объявление в Приложении"
+        }
+    }
+    
+    url = WEB_APP_LINK + f"?startapp=advertise"
+    keyboard = [
+        [{'text': translations[language]['open'], 'url': url}]
+    ]
+    link_preview_options = {
+        'prefer_large_media': True,
+        'show_above_text': True,
+        'url': image_url
+    }
+    send_message_with_keyboard(chat_id, "ad_successfully_created", reply_markup={'inline_keyboard': keyboard}, language=language, link_preview_options=link_preview_options)
+
 def send_entity_link(chat_id, community_id, entity_id, entity_title, language, image_url):
     translations = {
         'en': {
@@ -146,6 +167,7 @@ def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='e
             'bot_has_no_administrator_rights': "Bot has no administrator rights. Please add the bot to the chat as an administrator and try again.",
             'communities_app_list': "Communities List",
             'advertise_setup': "Setup advertising",
+            'ad_successfully_created': "Advertisement successfully created!",
         },
         'ru': {
             'please_select_chat': "Пожалуйста, выберите чат:",
@@ -156,6 +178,7 @@ def send_message_with_keyboard(chat_id, text_key, reply_markup=None, language='e
             'bot_has_no_administrator_rights': "Бот не имеет прав администратора. Пожалуйста, добавьте бота в чат как администратора и попробуйте снова.",
             'communities_app_list': "Список Сообществ",
             'advertise_setup': "Настройка рекламы",
+            'ad_successfully_created': "Объявление успешно создано!",
         }
     }
 
