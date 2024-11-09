@@ -282,8 +282,6 @@ def send_user_created_ad(advertisement_id, image_preview_url, chat_id, language_
     """
     Function to be executed in a separate thread to send a message to the user about the created advertisement
     """
-    # Wait for 0.5 seconds to ensure the user returned back to the telegram chat.
-    time.sleep(0.5)
     
     try:
         logger.info(f"Processing advertisement notification for ad ID: {advertisement_id}")
@@ -362,6 +360,25 @@ def create_advertisement():
     notification_thread.start()
 
     return jsonify({"message": "Advertisement created successfully", "id": advertisement['id']}), 200
+
+@api_blueprint.route("/api/advertisements", methods=['GET', 'OPTIONS'])
+@token_required(community_specific_request=False)
+def get_user_advertisements():
+    user_id = request.user_info['id']
+    advertisements = service_manager.find_advertisements_by_user_id(user_id)
+    populate_entities_with_images(advertisements)
+    return jsonify({"advertisements": advertisements}), 200
+
+@api_blueprint.route("/api/advertisements/<advertisement_id>", methods=['DELETE', 'OPTIONS'])
+@token_required(community_specific_request=False)
+def delete_advertisement(advertisement_id):
+    user_id = request.user_info['id']
+    deleted_advertisement = service_manager.delete_advertisement(advertisement_id, user_id)
+    if deleted_advertisement:
+        delete_images_if_exists(deleted_advertisement)
+        return jsonify({"message": "Advertisement deleted successfully"}), 200
+    else:
+        return jsonify({"error": "Advertisement not found or you don't have permission to delete it"}), 404
 
 @api_blueprint.route("/api/items", methods=['GET', 'OPTIONS'])
 @token_required()
@@ -607,18 +624,20 @@ def resolve_user_link(user_id):
 
 def delete_images_if_exists(entity):
     images_deleted = 0
-    if entity and entity.get('images'):
-        for image in entity['images']:
-            try:
-                image_gcs_path = image.replace('https://storage.googleapis.com/', '')
-                bucket_name, blob_name = image_gcs_path.split('/', 1)
-                bucket = storage_client.bucket(bucket_name)
-                blob = bucket.blob(blob_name)
-                blob.delete()
-                logger.info(f"Deleted image from GCS: {image_gcs_path}")
-                images_deleted += 1
-            except Exception as e:
-                logger.error(f"Error deleting image from GCS: {str(e)}", exc_info=True)
+    if entity and entity.get('mediaGroupId'):
+        media_groups = service_manager.get_media_groups([entity['mediaGroupId']])
+        if media_groups and media_groups[0].get('images'):
+            for image in media_groups[0]['images']:
+                try:
+                    image_gcs_path = image.replace('https://storage.googleapis.com/', '')
+                    bucket_name, blob_name = image_gcs_path.split('/', 1)
+                    bucket = storage_client.bucket(bucket_name)
+                    blob = bucket.blob(blob_name)
+                    blob.delete()
+                    logger.info(f"Deleted image from GCS: {image_gcs_path}")
+                    images_deleted += 1
+                except Exception as e:
+                    logger.error(f"Error deleting image from GCS: {str(e)}", exc_info=True)
     return images_deleted
 
 def populate_entities_with_images(entities):

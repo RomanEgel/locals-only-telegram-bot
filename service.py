@@ -274,6 +274,10 @@ class LocalsAdvertisement:
 
     def find_by_user_id(self, userId: int):
         return [format_entity(entity) for entity in self.collection.find({"userId": userId})]
+    
+    def delete(self, id: str, userId: int):
+        deleted_advertisement = self.collection.find_one_and_delete({"_id": id, "userId": userId}, return_document=ReturnDocument.BEFORE)
+        return format_entity(deleted_advertisement) if deleted_advertisement else None
 
 class ServiceManager:
     def __init__(self):
@@ -428,6 +432,9 @@ class ServiceManager:
     
     def find_advertisements_by_user_id(self, userId: int):
         return self.advertisement.find_by_user_id(userId)
+    
+    def delete_advertisement(self, id: str, userId: int):
+        return self.advertisement.delete(id, userId)
 
 
 def format_entity(entity):
