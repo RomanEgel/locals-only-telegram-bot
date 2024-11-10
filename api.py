@@ -8,7 +8,7 @@ from urllib.parse import parse_qsl
 import logging
 from functools import wraps
 from config import service_manager, storage_client  # Import storage_client from config
-from common_utils import get_chat_administrators, get_chat_member
+from common_utils import get_chat, get_chat_administrators, get_chat_member
 import json
 import requests
 from common_utils import get_supported_language, is_language_supported, is_currency_supported, is_location_in_range, generate_gcs_upload_link_for_image, check_file_exists_in_gcs, send_ad_link
@@ -397,9 +397,43 @@ def get_advertisement_for_community():
     if advertisements:
         # pick random ad
         ad = random.choice(advertisements)
+        service_manager.increment_advertisement_views(ad['id'])
         populate_entities_with_images([ad])
     
     return jsonify({"advertisement": ad}), 200
+
+@api_blueprint.route("/api/advertisements/<advertisement_id>/_resolve-user-link", methods=['GET', 'OPTIONS'])
+@token_required()
+def resolve_user_link_for_advertisement(advertisement_id):
+    advertisement = service_manager.get_advertisement_by_id(advertisement_id)
+    if advertisement:
+        user = service_manager.get_user(advertisement['userId'])
+        if not user:
+            logger.info(f"User not found for advertisement {advertisement_id}, deleting advertisement")
+            service_manager.delete_advertisement(advertisement_id, advertisement['userId'])
+            return jsonify({"error": "User not found"}), 404
+        chat_info = get_chat(user['chatId'])
+        if chat_info:
+            return jsonify({"link": f"https://t.me/{chat_info['username']}"}), 200
+        else:
+            logger.info(f"Chat not found for user {user['id']}, deleting advertisement {advertisement_id}")
+            service_manager.delete_advertisement(advertisement_id, advertisement['userId'])
+            return jsonify({"error": "Chat not found"}), 404
+    else:
+        return jsonify({"error": "Advertisement not found"}), 404
+    
+@api_blueprint.route("/api/users/<user_id>/_resolve-link", methods=['GET', 'OPTIONS'])
+@token_required()
+def resolve_user_link(user_id):
+    """
+    Resolve a user link.
+    """
+    chat_member = get_chat_member(request.community['chatId'], user_id)
+    
+    if chat_member:
+        return jsonify({"link": f"https://t.me/{chat_member['user']['username']}"}), 200
+    else:
+        return jsonify({"error": "User not found"}), 404
 
 @api_blueprint.route("/api/items", methods=['GET', 'OPTIONS'])
 @token_required()
@@ -630,18 +664,6 @@ def update_news(news_id):
     except Exception as e:
         logger.error(f"Error updating news item: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
-
-@api_blueprint.route("/api/users/<user_id>/_resolve-link", methods=['GET', 'OPTIONS'])
-@token_required()
-def resolve_user_link(user_id):
-    """
-    Resolve a user link.
-    """
-    chat_member = get_chat_member(request.community['chatId'], user_id)
-    if chat_member:
-        return jsonify({"link": f"https://t.me/{chat_member['user']['username']}"}), 200
-    else:
-        return jsonify({"error": "User not found"}), 404
 
 def delete_images_if_exists(entity):
     images_deleted = 0

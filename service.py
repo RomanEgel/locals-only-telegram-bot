@@ -279,7 +279,8 @@ class LocalsAdvertisement:
             "title": title,
             "description": description,
             "price": price,
-            "currency": currency
+            "currency": currency,
+            "views": 0
         }
         self.collection.insert_one(advertisement)
         return self.format_ad_entity(advertisement)
@@ -287,6 +288,13 @@ class LocalsAdvertisement:
     def find_by_user_id(self, userId: int):
         return [self.format_ad_entity(entity) for entity in self.collection.find({"userId": userId})]
     
+    def get_by_id(self, id: str):
+        advertisement = self.collection.find_one({"_id": id})
+        return self.format_ad_entity(advertisement) if advertisement else None
+
+    def increment_views(self, id: str):
+        self.collection.update_one({"_id": id}, {"$inc": {"views": 1}})
+
     def find_for_location(self, location: dict):
         pipeline = [
             {
@@ -472,8 +480,14 @@ class ServiceManager:
     def find_advertisements_by_user_id(self, userId: int):
         return self.advertisement.find_by_user_id(userId)
     
+    def get_advertisement_by_id(self, id: str):
+        return self.advertisement.get_by_id(id)
+    
     def find_advertisements_for_location(self, location: dict):
         return self.advertisement.find_for_location(location)
+    
+    def increment_advertisement_views(self, id: str):
+        return self.advertisement.increment_views(id)
     
     def delete_advertisement(self, id: str, userId: int):
         return self.advertisement.delete(id, userId)

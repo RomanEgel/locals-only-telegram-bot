@@ -305,6 +305,15 @@ def get_chat_member(chat_id, user_id):
         logger.error(f"Failed to get chat member: {response.text}")
         return None
 
+def get_chat(chat_id):
+    url = f"{TELEGRAM_API_URL}/getChat"
+    params = {"chat_id": chat_id}
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        return response.json()['result']
+    else:
+        logger.error(f"Failed to get chat: {response.text}")
+        return None
 
 def handle_entity_creation_from_hashtag(message, community, is_caption, is_private):
     text = message['caption'] if is_caption else message['text']
